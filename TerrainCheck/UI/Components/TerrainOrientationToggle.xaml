@@ -1,0 +1,60 @@
+﻿<UserControl x:Class="GvcRevitPlugins.TerrainCheck.UI.Components.TerrainOrientationToggle"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:local="clr-namespace:GvcRevitPlugins.TerrainCheck.UI.Components"
+             xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
+             mc:Ignorable="d"
+             d:DesignHeight="30"
+             d:DesignWidth="160"
+             d:Background="White">
+    <UserControl.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <materialDesign:CustomColorTheme BaseTheme="Light"
+                                                 PrimaryColor="#76B72A"
+                                                 SecondaryColor="#2469b6" />
+                <!--<ResourceDictionary Source="pack://application:,,,/MaterialDesignThemes.Wpf;component/Themes/MaterialDesignTheme.Light.xaml" />-->
+                <ResourceDictionary Source="pack://application:,,,/MaterialDesignThemes.Wpf;component/Themes/MaterialDesign3.Defaults.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+
+            <Style TargetType="TextBlock">
+                <Setter Property="FontFamily"
+                        Value="Inter" />
+                <Setter Property="VerticalAlignment"
+                        Value="Center" />
+            </Style>
+        </ResourceDictionary>
+    </UserControl.Resources>
+
+    <Grid Height="Auto">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="Auto" />
+            <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
+
+        <TextBlock Text="Aterro"
+                   Grid.Column="0"
+                   TextAlignment="Right" />
+        <ToggleButton Grid.Column="1"
+                      Style="{StaticResource MaterialDesignSwitchToggleButton}"
+                      IsChecked="True"
+                      Margin="10 0">
+            <materialDesign:PackIcon Kind="Upload"
+                                     RenderTransformOrigin=".5,.5">
+                <materialDesign:PackIcon.RenderTransform>
+                    <RotateTransform Angle="180" />
+                </materialDesign:PackIcon.RenderTransform>
+            </materialDesign:PackIcon>
+            <materialDesign:ToggleButtonAssist.OnContent>
+                <materialDesign:PackIcon Kind="Upload"
+                                         RenderTransformOrigin=".5,.5"
+                                         Foreground="White" />
+            </materialDesign:ToggleButtonAssist.OnContent>
+        </ToggleButton>
+        <TextBlock Text="Corte"
+                   Grid.Column="2" />
+    </Grid>
+</UserControl>

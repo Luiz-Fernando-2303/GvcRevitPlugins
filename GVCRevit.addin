@@ -1,0 +1,21 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<RevitAddIns>
+	<AddIn Type="Application">
+		<Name>Emccamp Checagem de Terrenos</Name>
+		<Description>No description yet</Description>
+		<Assembly>Lupa Revit/GvcRevitPlugins.dll</Assembly>
+		<FullClassName>GvcRevitPlugins.TerrainCheck.TerrainCheckApp</FullClassName>
+		<ClientId>3023a4be-5dba-4dd0-b912-9e55f081f1c9</ClientId>
+		<VendorId>Eng Nelson Henrique</VendorId>
+		<VendorDescription>Nelson Henrique | Instagram: @nelsonhpc.eng | Telegram: @nelsonhpc</VendorDescription>
+	</AddIn>
+	<AddIn Type="Command">
+		<Name>GVC - SimpleDebugs</Name>
+		<Description>No description yet</Description>
+		<Assembly>Lupa Revit/GvcRevitPlugins.dll</Assembly>
+		<FullClassName>GvcRevitPlugins.SimpleDebugs.SimpleDebugsCommand</FullClassName>
+		<ClientId>e6aa8ea0-563d-44cf-92bd-c60cfca0242b</ClientId>
+		<VendorId>Eng Nelson Henrique</VendorId>
+		<VendorDescription>Nelson Henrique | Instagram: @nelsonhpc.eng | Telegram: @nelsonhpc</VendorDescription>
+	</AddIn>
+</RevitAddIns>

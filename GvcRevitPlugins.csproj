@@ -1,0 +1,170 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+	<PropertyGroup>
+		<RootNamespace>GvcRevitPlugins</RootNamespace>
+		<AssemblyName>GvcRevitPlugins</AssemblyName>
+		<!--<RuntimeIdentifier>win-x64</RuntimeIdentifier>-->
+		<TargetFramework>net8.0-windows</TargetFramework>
+		<UseWPF>true</UseWPF>
+		<LangVersion>latest</LangVersion>
+		<PlatformTarget>x64</PlatformTarget>
+		<UseSystemDrawing>true</UseSystemDrawing>
+		<Deterministic>true</Deterministic>
+		<GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+		<OutputType>Library</OutputType>
+		<SignAssembly>False</SignAssembly>
+		<Platforms>AnyCPU</Platforms>
+		<CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+	</PropertyGroup>
+
+	<PropertyGroup>
+		<Configurations>Debug;Debug R24;Debug R25</Configurations>
+		<Configurations>$(Configurations);Release R24;Release R25</Configurations>
+		<RevitVersion>2025</RevitVersion>
+	</PropertyGroup>
+
+	<PropertyGroup Condition="$(Configuration.Contains('R24'))">
+		<RevitVersion>2024</RevitVersion>
+		<TargetFramework>net48</TargetFramework>
+	</PropertyGroup>
+	<PropertyGroup Condition="$(Configuration.Contains('R25'))">
+		<RevitVersion>2025</RevitVersion>
+		<TargetFramework>net8.0-windows</TargetFramework>
+	</PropertyGroup>
+
+	<PropertyGroup>
+		<StartAction>Program</StartAction>
+		<StartProgram>C:\Program Files\Autodesk\Revit $(RevitVersion)\Revit.exe</StartProgram>
+		<!--<StartArguments>/language PTB</StartArguments>-->
+		<StartArguments>/language ENG</StartArguments>
+	</PropertyGroup>
+
+	<!-- Debug configurations -->
+	<PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|AnyCPU'">
+		<DefineConstants>DEBUG;TRACE</DefineConstants>
+		<TargetFramework>net8.0-windows</TargetFramework>
+		<DebugSymbols>true</DebugSymbols>
+		<DebugType>full</DebugType>
+		<Optimize>false</Optimize>
+		<OutputPath>bin\Debug\$(TargetFramework)\</OutputPath>
+		<WarningLevel>4</WarningLevel>
+	</PropertyGroup>
+	<ItemGroup>
+	  <None Remove="Resources\RevitCategoriesList.tsv" />
+	</ItemGroup>
+
+	<!--<PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debug R25|AnyCPU'">
+		<DefineConstants>DEBUG;TRACE</DefineConstants>
+		--><!--<TargetFramework>net8.0-windows</TargetFramework>--><!--
+		<DebugSymbols>true</DebugSymbols>
+		<DebugType>full</DebugType>
+		<Optimize>false</Optimize>
+		<OutputPath>bin\Debug\$(TargetFramework)\</OutputPath>
+		<WarningLevel>4</WarningLevel>
+		<StartAction>Program</StartAction>
+		<StartProgram>$(ProgramW6432)\Autodesk\Revit 2025\Revit.exe</StartProgram>
+	</PropertyGroup>
+	
+	<PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debug R24|AnyCPU'">
+		<DefineConstants>DEBUG;TRACE</DefineConstants>
+		<DebugSymbols>true</DebugSymbols>
+		<DebugType>full</DebugType>
+		<Optimize>false</Optimize>
+		<OutputPath>bin\Debug\$(TargetFramework)\</OutputPath>
+		<WarningLevel>4</WarningLevel>
+		<StartAction>Program</StartAction>
+		<StartProgram>$(ProgramW6432)\Autodesk\Revit 2024\Revit.exe</StartProgram>
+	</PropertyGroup>-->
+
+
+	<!-- Release configurations -->
+	<!--<PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Release|AnyCPU'">
+		<DefineConstants>TRACE</DefineConstants>
+		<DebugSymbols>false</DebugSymbols>
+		<DebugType>pdbonly</DebugType>
+		<Optimize>true</Optimize>
+		<OutputPath>bin\Release\$(TargetFramework)\</OutputPath>
+		<WarningLevel>4</WarningLevel>
+	</PropertyGroup>-->
+
+	<!-- Dependencies for RevitAPI and UI references depending on target framework -->
+
+	<!-- Package References -->
+	<ItemGroup>
+		<PackageReference Include="MaterialDesignColors" Version="3.1.0" />
+		<PackageReference Include="MaterialDesignThemes" Version="4.9.0" />
+		<PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+		<PackageReference Include="Revit.Async" Version="2.0.1" />
+		<PackageReference Include="System.Drawing.Common" Version="7.0.0" />
+	</ItemGroup>
+
+	<ItemGroup Condition=" '$(TargetFramework)' == 'net48' ">
+		<Reference Include="RevitAPI, Version=24.0.0.0, Culture=neutral, processorArchitecture=AMD64">
+			<HintPath>C:\Program Files\Autodesk\Revit 2024\RevitAPI.dll</HintPath>
+			<Private>False</Private>
+		</Reference>
+		<Reference Include="RevitAPIUI, Version=24.0.0.0, Culture=neutral, processorArchitecture=AMD64">
+			<HintPath>C:\Program Files\Autodesk\Revit 2024\RevitAPIUI.dll</HintPath>
+			<Private>False</Private>
+		</Reference>
+	</ItemGroup>
+	
+	<ItemGroup Condition=" '$(TargetFramework)' == 'net8.0-windows' ">
+		<Reference Include="RevitAPI, Version=25.0.0.0, Culture=neutral, processorArchitecture=AMD64">
+			<HintPath>C:\Program Files\Autodesk\Revit 2025\RevitAPI.dll</HintPath>
+			<Private>False</Private>
+		</Reference>
+		<Reference Include="RevitAPIUI, Version=25.0.0.0, Culture=neutral, processorArchitecture=AMD64">
+			<HintPath>C:\Program Files\Autodesk\Revit 2025\RevitAPIUI.dll</HintPath>
+			<Private>False</Private>
+		</Reference>
+	</ItemGroup>
+
+	<ItemGroup>
+		<Content Include="GVCRevit.addin" />
+		<EmbeddedResource Include="Resources\RevitCategoriesList.tsv" />
+		<ProjectReference Include="..\SheetsSync\SheetsSync.csproj" />
+		<Resource Include="Resources\Logo16.png" />
+		<Resource Include="Resources\Logo32.png" />
+	</ItemGroup>
+
+	<ItemGroup>
+	  <Reference Include="Microsoft.Web.WebView2.Core">
+	    <HintPath>Packages\Microsoft.Web.WebView2.Core.dll</HintPath>
+	  </Reference>
+	  <Reference Include="Microsoft.Web.WebView2.WinForms">
+	    <HintPath>Packages\Microsoft.Web.WebView2.WinForms.dll</HintPath>
+	  </Reference>
+	  <Reference Include="Microsoft.Web.WebView2.Wpf">
+	    <HintPath>Packages\Microsoft.Web.WebView2.Wpf.dll</HintPath>
+	  </Reference>
+	</ItemGroup>
+
+	<ItemGroup>
+	  <Compile Update="Properties\Resource.Designer.cs">
+	    <DesignTime>True</DesignTime>
+	    <AutoGen>True</AutoGen>
+	    <DependentUpon>Resource.resx</DependentUpon>
+	  </Compile>
+	</ItemGroup>
+
+	<ItemGroup>
+	  <EmbeddedResource Update="Properties\Resource.resx">
+	    <Generator>ResXFileCodeGenerator</Generator>
+	    <LastGenOutput>Resource.Designer.cs</LastGenOutput>
+	  </EmbeddedResource>
+	</ItemGroup>
+	
+	<!-- Post-build events for adding files to Revit addins folder -->
+	<Target Name="PostBuild" AfterTargets="PostBuildEvent">
+		<Exec Command="if exist &quot;$(AppData)\Autodesk\REVIT\Addins\2024&quot; copy &quot;$(ProjectDir)*.addin&quot; &quot;$(AppData)\Autodesk\REVIT\Addins\2024&quot;" />
+		<Exec Command="echo outputpath &quot;$(ProjectDir)$(OutputPath)*.dll&quot;" />
+		<Exec Command="if exist &quot;$(AppData)\Autodesk\REVIT\Addins\2024\Lupa Revit&quot; copy &quot;$(ProjectDir)$(OutputPath)*.dll&quot; &quot;$(AppData)\Autodesk\REVIT\Addins\2024\Lupa Revit&quot;" />
+		<Exec Command="if exist &quot;$(AppData)\Autodesk\REVIT\Addins\2025&quot; copy &quot;$(ProjectDir)*.addin&quot; &quot;$(AppData)\Autodesk\REVIT\Addins\2025&quot;" />
+		<Exec Command="if exist &quot;$(AppData)\Autodesk\REVIT\Addins\2025\Lupa Revit&quot; copy &quot;$(ProjectDir)$(OutputPath)*.dll&quot; &quot;$(AppData)\Autodesk\REVIT\Addins\2025\Lupa Revit&quot;" />
+	</Target>
+
+	<!--<Target Name="PostBuild" AfterTargets="PostBuildEvent">
+		<Exec Command="call &quot;$(ProjectDir)PostBuildScript.bat&quot; &quot;$(ConfigurationName)&quot; &quot;$(ProjectDir)&quot; &quot;$(OutputPath)&quot;" />
+	</Target>-->
+
+</Project>
