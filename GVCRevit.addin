@@ -9,6 +9,7 @@
 		<VendorId>Eng Nelson Henrique</VendorId>
 		<VendorDescription>Nelson Henrique | Instagram: @nelsonhpc.eng | Telegram: @nelsonhpc</VendorDescription>
 	</AddIn>
+	<!--
 	<AddIn Type="Command">
 		<Name>GVC - SimpleDebugs</Name>
 		<Description>No description yet</Description>
@@ -18,4 +19,5 @@
 		<VendorId>Eng Nelson Henrique</VendorId>
 		<VendorDescription>Nelson Henrique | Instagram: @nelsonhpc.eng | Telegram: @nelsonhpc</VendorDescription>
 	</AddIn>
+	-->
 </RevitAddIns>

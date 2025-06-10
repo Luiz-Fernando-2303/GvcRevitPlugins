@@ -19,7 +19,7 @@ namespace GvcRevitPlugins.TerrainCheck.Rules
         public string WallTypeName { get; set; } = "Resultado Talude Corte";
         public string ResultFamilyName { get; } = "Linha de Afastamento Mínimo.rfa";
 
-        public Action<UIDocument, XYZ[], XYZ, XYZ[], double, bool> Execute => (uidoc, startPoints, normal, boundaryPoints, baseElevation, draw) =>
+        public Action<UIDocument, XYZ[], XYZ, XYZ[], double, bool, Level> Execute => (uidoc, startPoints, normal, boundaryPoints, baseElevation, draw, Level) =>
         {
             double StrucWallHeight = UnitUtils.ConvertToInternalUnits(TerrainCheckApp._thisApp.Store.TerrainCheckStrucWallHeight, UnitTypeId.Meters);
 
@@ -63,37 +63,13 @@ namespace GvcRevitPlugins.TerrainCheck.Rules
 
             GetWorstCase(baseElevation, startPoints, boundaryPoints);
 
-            if (draw)
+            if (true) //TODO: Fix draw option
             {
-
-/* Unmerged change from project 'GvcRevitPlugins (net48)'
-Before:
-                FamilySymbol type = GvcRevitPlugins.Utils.RevitUtils.GetTypesSymbols(uidoc.Document, ResultFamilyName)[0] as FamilySymbol;
-                if (!type.IsActive)
-After:
-                FamilySymbol type = RevitUtils.GetTypesSymbols(uidoc.Document, ResultFamilyName)[0] as FamilySymbol;
-                if (!type.IsActive)
-*/
-                FamilySymbol type = Shared.Utils.RevitUtils.GetTypesSymbols(uidoc.Document, ResultFamilyName)[0] as FamilySymbol;
-                if (!type.IsActive)
-                {
-                    type.Activate();
-                    uidoc.Document.Regenerate();
-                }
-
-                //Curve dummyCurve = Line.CreateBound(new XYZ(-20, -30,0), new XYZ(20,30,10));
-                //FamilyInstance newElement = uidoc.Document.Create.NewFamilyInstance(dummyCurve, type, level, Autodesk.Revit.DB.Structure.StructuralType.UnknownFraming);
-                //DrawResult(uidoc.Document, type, dummyCurve, level, minimumDistance);
-
-                //return;
                 foreach (Curve curve in resultCurves)
-                    DrawResult(uidoc.Document, type, curve, minimumDistance, UnitUtils.ConvertToInternalUnits(15, UnitTypeId.Meters));
-
-
-                //foreach (Curve curve in resultCurves)
-                //    Wall.Create(uidoc.Document, curve, wallType.Id, level.Id, minimumDistance, 0.0, false, false);
+                    Wall.Create(uidoc.Document, curve, wallType.Id, Level.Id, minimumDistance, 0.0, false, false);
             }
         };
+
         private bool DrawResult(Document doc, FamilySymbol structuralFrameType, Curve curve, double minimumOffset, double drawHeight)
         {
             //FamilyInstance newElement = doc.Create.NewFamilyInstance(curve, structuralFrameType, level, Autodesk.Revit.DB.Structure.StructuralType.UnknownFraming);
@@ -115,6 +91,7 @@ After:
 
             return true;
         }
+
         private void GetWorstCase(double baseElevation, XYZ[] facePoints, XYZ[] boundaryPoints)
         {
             int result = -1;

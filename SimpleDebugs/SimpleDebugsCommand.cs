@@ -43,15 +43,17 @@ namespace GvcRevitPlugins.SimpleDebugs
 
 
             //SearchParameter(doc, "Sólido topográfico", "Parametro Teste Query 01", "Sólido Topográfico Exemplo 01", "Parametro Teste", "row 25");
-            PlaceImagesTest.FullPipeline(uiApp, doc);
+            //PlaceImagesTest.FullPipeline(uiApp, doc);
+            //return Result.Succeeded;
+
+            //PlaceImagesTest.QueryParameters(uiApp, doc);
+            //return Result.Succeeded;
+            //PlaceImagesTest.PlaceImages(uiApp, doc); //Working!!
+            //PlaceImagesTest.CreateProjectParameter(uiApp, doc);
+            //return Result.Succeeded;
+
             return Result.Succeeded;
 
-            PlaceImagesTest.QueryParameters(uiApp, doc);
-            return Result.Succeeded;
-            PlaceImagesTest.PlaceImages(uiApp, doc); //Working!!
-            PlaceImagesTest.CreateProjectParameter(uiApp, doc);
-            return Result.Succeeded;
-            
         }
         public static List<string> CategoryRowsNotFound = new List<string>();
         

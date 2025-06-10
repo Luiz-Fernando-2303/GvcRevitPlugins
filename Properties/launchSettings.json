@@ -8,7 +8,14 @@
     "Debug Revit 25": {
       "commandName": "Project",
       "workingDirectory": "C:\\Program Files\\Autodesk\\Revit 2025",
-      "jsWebView2Debugging": false
+      "jsWebView2Debugging": false,
+      "nativeDebugging": false
+    },
+    "Debug": {
+      "commandName": "Executable",
+      "executablePath": "D:\\Autodesk\\Revit 2025\\Revit.exe",
+      "workingDirectory": "D:\\Autodesk\\Revit 2025",
+      "nativeDebugging": false
     }
   }
 }

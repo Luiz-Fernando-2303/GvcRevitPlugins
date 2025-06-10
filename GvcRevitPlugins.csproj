@@ -92,6 +92,7 @@
 	<ItemGroup>
 		<PackageReference Include="MaterialDesignColors" Version="3.1.0" />
 		<PackageReference Include="MaterialDesignThemes" Version="4.9.0" />
+		<PackageReference Include="Microsoft.Web.WebView2" Version="1.0.3296.44" />
 		<PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
 		<PackageReference Include="Revit.Async" Version="2.0.1" />
 		<PackageReference Include="System.Drawing.Common" Version="7.0.0" />
@@ -122,12 +123,21 @@
 	<ItemGroup>
 		<Content Include="GVCRevit.addin" />
 		<EmbeddedResource Include="Resources\RevitCategoriesList.tsv" />
-		<ProjectReference Include="..\SheetsSync\SheetsSync.csproj" />
+		<!-- <ProjectReference Include="..\SheetsSync\SheetsSync.csproj" /> -->
 		<Resource Include="Resources\Logo16.png" />
 		<Resource Include="Resources\Logo32.png" />
 	</ItemGroup>
 
 	<ItemGroup>
+	  <Reference Include="APIDBAPI">
+	    <HintPath>D:\Autodesk\Revit 2025\APIDBAPI.dll</HintPath>
+	  </Reference>
+	  <Reference Include="APIInterop">
+	    <HintPath>D:\Autodesk\Revit 2025\APIInterop.dll</HintPath>
+	  </Reference>
+	  <Reference Include="APIUIAPI">
+	    <HintPath>D:\Autodesk\Revit 2025\APIUIAPI.dll</HintPath>
+	  </Reference>
 	  <Reference Include="Microsoft.Web.WebView2.Core">
 	    <HintPath>Packages\Microsoft.Web.WebView2.Core.dll</HintPath>
 	  </Reference>
@@ -136,6 +146,12 @@
 	  </Reference>
 	  <Reference Include="Microsoft.Web.WebView2.Wpf">
 	    <HintPath>Packages\Microsoft.Web.WebView2.Wpf.dll</HintPath>
+	  </Reference>
+	  <Reference Include="RevitAPI">
+	    <HintPath>D:\Autodesk\Revit 2025\RevitAPI.dll</HintPath>
+	  </Reference>
+	  <Reference Include="RevitAPIUI">
+	    <HintPath>D:\Autodesk\Revit 2025\RevitAPIUI.dll</HintPath>
 	  </Reference>
 	</ItemGroup>
 
@@ -156,7 +172,7 @@
 	
 	<!-- Post-build events for adding files to Revit addins folder -->
 	<Target Name="PostBuild" AfterTargets="PostBuildEvent">
-		<Exec Command="if exist &quot;$(AppData)\Autodesk\REVIT\Addins\2024&quot; copy &quot;$(ProjectDir)*.addin&quot; &quot;$(AppData)\Autodesk\REVIT\Addins\2024&quot;" />
+		<Exec Command="if exist &quot;$(AppData)\Autodesk\REVIT\Addins\2025&quot; (&#xD;&#xA;    echo &quot;Revit Addins directory exists.&quot;&#xD;&#xA;&#xD;&#xA;    copy &quot;$(ProjectDir)*.addin&quot; &quot;$(AppData)\Autodesk\REVIT\Addins\2025&quot;&#xD;&#xA;    if %25errorlevel%25 neq 0 (&#xD;&#xA;        echo &quot;Error: Failed to copy .addin files&quot;&#xD;&#xA;        exit /b 1&#xD;&#xA;    )&#xD;&#xA;) else (&#xD;&#xA;    echo &quot;Error: Revit Addins directory does not exist.&quot;&#xD;&#xA;    exit /b 1&#xD;&#xA;)&#xD;&#xA;" />
 		<Exec Command="echo outputpath &quot;$(ProjectDir)$(OutputPath)*.dll&quot;" />
 		<Exec Command="if exist &quot;$(AppData)\Autodesk\REVIT\Addins\2024\Lupa Revit&quot; copy &quot;$(ProjectDir)$(OutputPath)*.dll&quot; &quot;$(AppData)\Autodesk\REVIT\Addins\2024\Lupa Revit&quot;" />
 		<Exec Command="if exist &quot;$(AppData)\Autodesk\REVIT\Addins\2025&quot; copy &quot;$(ProjectDir)*.addin&quot; &quot;$(AppData)\Autodesk\REVIT\Addins\2025&quot;" />

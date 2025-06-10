@@ -10,6 +10,6 @@ namespace GvcRevitPlugins.TerrainCheck.Rules
         string Description { get; }
         string Name { get; }
         string Color { get; }
-        Action<UIDocument, XYZ[], XYZ, XYZ[], double, bool> Execute { get; }
+        Action<UIDocument, XYZ[], XYZ, XYZ[], double, bool, Level> Execute { get; }
     }
 }

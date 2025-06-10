@@ -6,6 +6,12 @@ namespace GvcRevitPlugins.Shared.Utils
 {
     public static class XYZUtils
     {
+        /// <summary>
+        /// R(t) = P + t*D
+        /// t -> Number of divisions
+        /// P -> Start point
+        /// D -> Direction vector (end - start)
+        /// 
         internal static XYZ[] DivideEvenly(XYZ start, XYZ end, int number)
         {
             XYZ[] points = new XYZ[number + 1];
@@ -16,6 +22,7 @@ namespace GvcRevitPlugins.Shared.Utils
 
             return points;
         }
+
         public static XYZ[] RemoveAlmostEquals(List<XYZ> points, double tolerance)
         {
             List<XYZ> result = new List<XYZ>();

@@ -15,7 +15,7 @@ namespace GvcRevitPlugins.TerrainCheck.Rules
         public int WallTypeId { get; set; }
         public string WallTypeName { get; set; } = "Resultado Talude Arrimo";
 
-        public Action<UIDocument, XYZ[], XYZ, XYZ[], double, bool> Execute => (uidoc, startPoints, normal, boundaryPoints, baseElevation, draw) =>
+        public Action<UIDocument, XYZ[], XYZ, XYZ[], double, bool, Level> Execute => (uidoc, startPoints, normal, boundaryPoints, baseElevation, draw, Level) =>
         {
             WallType wallType = new FilteredElementCollector(uidoc.Document)
                                .OfClass(typeof(WallType))
