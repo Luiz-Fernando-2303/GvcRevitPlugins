@@ -6,12 +6,57 @@ namespace GvcRevitPlugins.Shared.Utils
 {
     public static class XYZUtils
     {
-        /// <summary>
-        /// R(t) = P + t*D
-        /// t -> Number of divisions
-        /// P -> Start point
-        /// D -> Direction vector (end - start)
-        /// 
+        public static List<XYZ> DivideCurvesEvenly(IEnumerable<Curve> boundaryPath, int subdivisions)
+        {
+            if (subdivisions < 2) return null;
+
+            var curves = boundaryPath.Where(c => c.IsBound && c.Length > 0).ToList();
+            double totalLength = curves.Sum(c => c.Length);
+            if (totalLength <= 0) return null;
+
+            double segmentLength = totalLength / subdivisions;
+            List<XYZ> points = new();
+
+            double targetLength = 0;
+            double accumulatedLength = 0;
+            int currentCurveIndex = 0;
+
+            Curve currentCurve = curves[currentCurveIndex];
+            double currentCurveStart = currentCurve.GetEndParameter(0);
+            double currentCurveEnd = currentCurve.GetEndParameter(1);
+
+            points.Add(currentCurve.GetEndPoint(0));
+
+
+            for (int i = 1; i <= subdivisions; i++)
+            {
+                targetLength = segmentLength * i;
+
+                while (accumulatedLength + currentCurve.Length < targetLength)
+                {
+                    accumulatedLength += currentCurve.Length;
+                    currentCurveIndex++;
+
+                    if (currentCurveIndex > curves.Count)
+                        return points; 
+
+                    currentCurve = curves[currentCurveIndex];
+                    currentCurveStart = currentCurve.GetEndParameter(0);
+                    currentCurveEnd = currentCurve.GetEndParameter(1);
+                }
+
+                double remaining = targetLength - accumulatedLength;
+                double fraction = remaining / currentCurve.Length;
+
+                double param = currentCurveStart + fraction * (currentCurveEnd - currentCurveStart);
+                XYZ pt = currentCurve.Evaluate(param, false);
+
+                points.Add(pt);
+            }
+
+            return points;
+        }
+
         internal static XYZ[] DivideEvenly(XYZ start, XYZ end, int number)
         {
             XYZ[] points = new XYZ[number + 1];

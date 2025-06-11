@@ -37,8 +37,6 @@ namespace GvcRevitPlugins.TerrainCheck
                 TaskDialog.Show("Null Error", "Face normal is null");
                 return;
             }
-            Draw._XYZ(doc, faceProjection);
-            Draw._XYZ(doc, faceNormal);
 
             Curve[] terrainBoundaryLines = GetTerrainBoundaryLines(doc, terrainBoundaryId, out ElementId toposolidId);
             if (terrainBoundaryLines == null || terrainBoundaryLines.All(x => x is null))
@@ -55,13 +53,16 @@ namespace GvcRevitPlugins.TerrainCheck
                 return;
             }
 
-            XYZ[] boundaryPoints = FindIntersectionPoints(doc, face, faceNormal, terrainBoundaryLines, subdivisionLevel);
+            XYZ[] boundaryPoints = FindIntersectionPoints(doc, face, faceNormal, terrainBoundaryLines, filteredTopoFaces, subdivisionLevel);
             if (boundaryPoints is null || boundaryPoints.All(x => x is null))
             {
                 TaskDialog.Show("Null Error", "Boundary points are null");
                 return;
             }
-            Draw._XYZ(doc, boundaryPoints);
+
+            // Test
+            XYZ[] test = FindIntersectionPoints(faceProjection, faceNormal, terrainBoundaryLines, filteredTopoFaces);
+            //Draw._XYZ(doc, test);
 
             using (Transaction transaction = new Transaction(doc, "EMCCAMP - Terrain Check"))
             {
@@ -156,33 +157,28 @@ namespace GvcRevitPlugins.TerrainCheck
             return (result, resultNormal, level, selectedFace);
         }
 
-        public static XYZ[] FindIntersectionPoints(Document doc, Face face, XYZ normal, IEnumerable<Curve> curves, int subdivisionsPerCurve)
+        // Interseção reversa Terreno -> parede
+        public static XYZ[] FindIntersectionPoints(Document doc, Face face, XYZ normal, IEnumerable<Curve> boundaryPath, Face[] terrainFaces, int subdivisionsPerCurve)
         {
+            if (face == null || normal == null || boundaryPath == null || !boundaryPath.Any()) return null;
+
             List<XYZ> projectedPoints = new();
 
-            foreach (Curve curve in curves)
+            List<XYZ> startPoints = Shared.Utils.XYZUtils.DivideCurvesEvenly(boundaryPath, subdivisionsPerCurve);
+
+            foreach (XYZ startPoint in startPoints)
             {
-                if (!curve.IsBound || subdivisionsPerCurve < 2)
-                    continue;
+                Line ray = Line.CreateUnbound(startPoint, normal);
+                Draw._Line(doc, ray);
 
-                XYZ start = curve.GetEndPoint(0);
-                XYZ end = curve.GetEndPoint(1);
-                var subs = Shared.Utils.XYZUtils.DivideEvenly(start, end, subdivisionsPerCurve);
+                SetComparisonResult result = face.Intersect(ray, out IntersectionResultArray intersectionResults);
+                if (result != SetComparisonResult.Overlap) continue;
 
-                foreach (XYZ p in subs)
-                {
-                    Line ray = Line.CreateUnbound(p, normal);
-                    Draw._Line(doc, ray);
-
-                    SetComparisonResult result = face.Intersect(ray, out IntersectionResultArray ira);
-                    if (result != SetComparisonResult.Overlap || ira == null || ira.Size == 0)
-                        continue;
-
-                    XYZ projectedPoint = ira.get_Item(0).XYZPoint;
-                    projectedPoints.Add(projectedPoint);
-                }
+                XYZ projectedPoint = ProjectPointOntoTopography(terrainFaces, intersectionResults.get_Item(0).XYZPoint); //sem efeito
+                projectedPoints.Add(projectedPoint);
             }
 
+            Draw._XYZ(doc, projectedPoints);
             return projectedPoints.ToArray();
         }
 
