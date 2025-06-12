@@ -6,6 +6,23 @@ namespace GvcRevitPlugins.Shared.Utils
 {
     public static class XYZUtils
     {
+        public static XYZ FaceNormal(Face face, out UV surfaceUV)
+        {
+            surfaceUV = new UV();
+
+            BoundingBoxUV bbox = face.GetBoundingBox();
+            if (bbox == null) return null;
+
+            UV uvSample = new UV(
+                (bbox.Min.U + bbox.Max.U) / 2,
+                (bbox.Min.V + bbox.Max.V) / 2
+            );
+            surfaceUV = uvSample;
+
+            XYZ faceNormal = face.ComputeNormal(uvSample);
+            return faceNormal;
+        }
+
         public static List<XYZ> DivideCurvesEvenly(IEnumerable<Curve> boundaryPath, int subdivisions)
         {
             if (subdivisions < 2) return null;
@@ -78,7 +95,9 @@ namespace GvcRevitPlugins.Shared.Utils
 
             return result.ToArray();
         }
+
         public static bool AreAlmostEqual(XYZ point1, XYZ point2, double tolerance) => point1.IsAlmostEqualTo(point2, tolerance);
+
         public static XYZ[] ReorderRefFacePoints(XYZ[] refFacePoints, XYZ[] refBoundaryPoints)
         {
             double dist1 = refFacePoints[0].DistanceTo(refBoundaryPoints[0]);
@@ -87,6 +106,7 @@ namespace GvcRevitPlugins.Shared.Utils
                 return refFacePoints;
             return new XYZ[] { refFacePoints[1], refFacePoints[0] };
         }
+
         public static XYZ GetEndPoint(XYZ origin, XYZ direction, double length)
         {
             if (length == 0) return origin;

@@ -8,6 +8,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Net;
 using System.Windows.Controls;
+using utils = GvcRevitPlugins.Shared.Utils;
 
 namespace GvcRevitPlugins.TerrainCheck
 {
@@ -15,12 +16,11 @@ namespace GvcRevitPlugins.TerrainCheck
     {
         internal static void Execute(UIApplication uiApp, bool draw = false)
         {
-            //TerrainCheckCommand_.Execute(uiApp, draw);
-            TerrainCheckCommand_reversed.Execute(uiApp, draw);
+            TerrainCheckCommand_.Execute(uiApp, draw);
         }
     }
 
-    public static class TerrainCheckCommand_reversed
+    public static class TerrainCheckCommand_
     {
         internal static void Execute(UIApplication uiApp, bool draw = false)
         {
@@ -44,7 +44,6 @@ namespace GvcRevitPlugins.TerrainCheck
                 TaskDialog.Show("Null Error", "Terrain boundary lines are null");
                 return;
             }
-            Draw._Curve(doc, terrainBoundaryLines);
 
             Face[] filteredTopoFaces = FilterTopoFaces(doc, toposolidId, out Toposolid toposolid);
             if (filteredTopoFaces == null || filteredTopoFaces.All(x => x is null))
@@ -60,10 +59,6 @@ namespace GvcRevitPlugins.TerrainCheck
                 return;
             }
 
-            // Test
-            XYZ[] test = FindIntersectionPoints(faceProjection, faceNormal, terrainBoundaryLines, filteredTopoFaces);
-            //Draw._XYZ(doc, test);
-
             using (Transaction transaction = new Transaction(doc, "EMCCAMP - Terrain Check"))
             {
                 transaction.Start();
@@ -71,6 +66,7 @@ namespace GvcRevitPlugins.TerrainCheck
                 transaction.Commit();
             }
         }
+
         internal static Curve[] GetTerrainBoundaryLines(Document doc, int railingId, out ElementId toposolidId)
         {
             toposolidId = null;
@@ -143,7 +139,7 @@ namespace GvcRevitPlugins.TerrainCheck
 
             if (startPoint is null || endPoint is null) return (null, null, null, null);
 
-            XYZ[] result = Shared.Utils.XYZUtils.DivideEvenly(startPoint, endPoint, subdivisionLevel);
+            XYZ[] result = utils.XYZUtils.DivideEvenly(startPoint, endPoint, subdivisionLevel);
 
             if (result is null || result.All(x => x is null)) return (null, null, null, null);
 
@@ -157,72 +153,39 @@ namespace GvcRevitPlugins.TerrainCheck
             return (result, resultNormal, level, selectedFace);
         }
 
-        // Interseção reversa Terreno -> parede
         public static XYZ[] FindIntersectionPoints(Document doc, Face face, XYZ normal, IEnumerable<Curve> boundaryPath, Face[] terrainFaces, int subdivisionsPerCurve)
         {
             if (face == null || normal == null || boundaryPath == null || !boundaryPath.Any()) return null;
 
             List<XYZ> projectedPoints = new();
 
-            List<XYZ> startPoints = Shared.Utils.XYZUtils.DivideCurvesEvenly(boundaryPath, subdivisionsPerCurve);
+            List<XYZ> startPoints = utils.XYZUtils.DivideCurvesEvenly(boundaryPath, subdivisionsPerCurve);
 
             foreach (XYZ startPoint in startPoints)
             {
                 Line ray = Line.CreateUnbound(startPoint, normal);
-                Draw._Line(doc, ray);
 
                 SetComparisonResult result = face.Intersect(ray, out IntersectionResultArray intersectionResults);
                 if (result != SetComparisonResult.Overlap) continue;
 
-                XYZ projectedPoint = ProjectPointOntoTopography(terrainFaces, intersectionResults.get_Item(0).XYZPoint); //sem efeito
+                XYZ projectedPoint = ProjectPointOntoTopography(terrainFaces, startPoint);
                 projectedPoints.Add(projectedPoint);
+
+                Draw._Line(doc, ray);
+                Draw._XYZ(doc, intersectionResults.get_Item(0).XYZPoint, 0.2);
             }
 
-            Draw._XYZ(doc, projectedPoints);
             return projectedPoints.ToArray();
-        }
-
-        private static XYZ[] FindIntersectionPoints(XYZ[] startPoints, XYZ normal, Curve[] boundaryPath, Face[] terrainFaces)
-        {
-            XYZ[] boundaryPoints = new XYZ[startPoints.Length];
-
-            for (int i = 0; i < startPoints.Length; i++)
-            {
-                Line rayPath = Line.CreateUnbound(startPoints[i], normal);
-                XYZ foundIntersection = null;
-
-                for (int j = 0; j < boundaryPath.Length; j++)
-                {
-                    SetComparisonResult result = rayPath.Intersect(boundaryPath[j], out IntersectionResultArray intersectionResults);
-                    if (result != SetComparisonResult.Overlap) continue;
-
-                    XYZ intersectionResultPoint = intersectionResults.get_Item(0).XYZPoint;
-                    double angle = normal.AngleTo(intersectionResultPoint - startPoints[i]) * 180 / Math.PI;
-
-                    if (angle > 1) continue;
-
-                    foundIntersection = intersectionResultPoint;
-                    break;
-                }
-
-                if (foundIntersection is null) continue;
-
-                XYZ projected = ProjectPointOntoTopography(terrainFaces, foundIntersection);
-                if (projected is null) continue;
-
-                boundaryPoints[i] = projected;
-            }
-
-            if (boundaryPoints.All(x => x is null)) return null;
-
-            return boundaryPoints;
         }
 
         private static XYZ ProjectPointOntoTopography(Face[] faces, XYZ point)
         {
             foreach (Face face in faces)
             {
-                if (!FilterPlanes((face as PlanarFace).FaceNormal)) continue;
+                XYZ faceNormal = utils.XYZUtils.FaceNormal(face, out UV _);
+
+                if (!FilterPlanes(faceNormal)) continue;
+
                 Line infinityCurve = Line.CreateUnbound(new XYZ(point.X, point.Y, 0), new XYZ(0, 0, 1));
                 SetComparisonResult inftest = face.Intersect(infinityCurve, out IntersectionResultArray intersectionResults);
                 if (inftest == SetComparisonResult.Overlap) return intersectionResults.get_Item(0).XYZPoint;
@@ -235,21 +198,25 @@ namespace GvcRevitPlugins.TerrainCheck
             toposolid = null;
 
             Element toposolidElem = doc.GetElement(toposolidId);
+            if (toposolidElem is not Toposolid ts) return null;
 
-            if (!(toposolidElem is Toposolid)) return null;
-
-            toposolid = toposolidElem as Toposolid;
+            toposolid = ts;
 
             GeometryElement geomElement = toposolid.get_Geometry(new Options());
-
-            Solid[] solids = geomElement.OfType<Solid>().ToArray();
+            Solid[] solids = geomElement.OfType<Solid>().Where(s => s.Faces.Size > 0).ToArray();
 
             List<Face> result = new List<Face>();
 
             foreach (Solid solid in solids)
+            {
                 foreach (Face face in solid.Faces)
-                    if (FilterPlanes((face as PlanarFace).FaceNormal))
+                {;
+                    XYZ faceNormal = utils.XYZUtils.FaceNormal(face, out UV _);
+
+                    if (FilterPlanes(faceNormal))
                         result.Add(face);
+                }
+            }
 
             return result.ToArray();
         }
@@ -257,133 +224,7 @@ namespace GvcRevitPlugins.TerrainCheck
         private static bool FilterPlanes(XYZ normal) => !(normal.X == 1 || normal.X == -1 || normal.Y == 1 || normal.Y == -1 || normal.Z == -1);
     }
 
-    public static class TerrainCheckCommand_new
-    {
-        internal static void Execute(UIApplication uiApp, bool draw = false)
-        {
-            UIDocument uiDoc = uiApp.ActiveUIDocument;
-            Document doc = uiDoc.Document;
-
-            Reference faceRef = uiDoc.Selection.PickObject(Autodesk.Revit.UI.Selection.ObjectType.Face, "Selecione a face do edifício");
-            if (faceRef == null) return;
-
-            Element element = doc.GetElement(faceRef.ElementId);
-            Face selectedFace = element.GetGeometryObjectFromReference(faceRef) as Face;
-            if (selectedFace == null) return;   
-
-            XYZ faceNormal = (selectedFace as PlanarFace).FaceNormal;
-            if (faceNormal == null) return;
-            Draw._XYZ(doc, faceNormal);
-
-            Line horizontalEdge = null;
-            foreach (EdgeArray edgeArray in selectedFace.EdgeLoops)
-            {
-                foreach (Edge edge in edgeArray)
-                {
-                    Curve curve = edge.AsCurve();
-                    if (curve is Line line && Math.Abs(line.Direction.Z) < 0.01)
-                    {
-                        horizontalEdge = line;
-                        break;
-                    }
-                }
-                if (horizontalEdge != null) break;
-            }
-
-            if (horizontalEdge == null) return;
-            Draw._Line(doc, horizontalEdge);
-
-            int subdivisionLevel = TerrainCheckApp._thisApp.Store.SubdivisionLevel;
-
-            List<XYZ> samplePoints = new List<XYZ>();
-            XYZ start = horizontalEdge.GetEndPoint(0);
-            XYZ end = horizontalEdge.GetEndPoint(1);
-
-            for (int i = 0; i <= subdivisionLevel; i++)
-            {
-                double t = (double)i / subdivisionLevel;
-                XYZ pt = new XYZ(
-                    start.X + t * (end.X - start.X),
-                    start.Y + t * (end.Y - start.Y),
-                    start.Z + t * (end.Z - start.Z)
-                );
-                samplePoints.Add(pt);
-            }
-            Draw._XYZ(doc, samplePoints);
-
-            Toposolid topo = new FilteredElementCollector(doc)
-                .OfClass(typeof(Toposolid))
-                .Cast<Toposolid>()
-                .FirstOrDefault();
-            if (topo == null) return;
-
-            List<Face> topoFaces = new List<Face>();
-            foreach (Solid solid in topo.get_Geometry(new Options()).OfType<Solid>())
-                foreach (Face face in solid.Faces)
-                {
-                    if (face is PlanarFace planarFace && !planarFace.FaceNormal.IsAlmostEqualTo(faceNormal, 0.01))
-                        continue;
-
-                    topoFaces.Add(face);
-                }
-            if (topoFaces.Count == 0) return;
-
-            List<XYZ> intersectionPoints = new List<XYZ>();
-            foreach (XYZ point in samplePoints)
-            {
-                Line ray = Line.CreateUnbound(point, faceNormal);
-                Draw._Line(doc, ray);
-                foreach (Face topoFace in topoFaces)
-                {
-                    SetComparisonResult result = topoFace.Intersect(ray, out IntersectionResultArray intersectionResults);
-                    if (result == SetComparisonResult.Overlap && intersectionResults.Size > 0)
-                    {
-                        XYZ intersectionPoint = intersectionResults.get_Item(0).XYZPoint;
-                        if (!intersectionPoints.Any(p => p.IsAlmostEqualTo(intersectionPoint, 0.01)))
-                            intersectionPoints.Add(intersectionPoint);
-                    }
-                }
-            }
-            if (intersectionPoints.Count == 0) return;
-            Draw._XYZ(doc, intersectionPoints);
-
-            using (Transaction transaction = new Transaction(doc, "EMCCAMP - Terrain Check"))
-            {
-                ElementId ElementId = faceRef.ElementId;
-                ElementId levelId = uiDoc.Document.GetElement(ElementId).LevelId;
-                Level level = doc.GetElement(levelId) as Level;
-
-                transaction.Start();
-                CheckRules.Execute(uiDoc,
-                    samplePoints.ToArray(),
-                    faceNormal,
-                    intersectionPoints.ToArray(), 
-                    UnitUtils.ConvertToInternalUnits(TerrainCheckApp._thisApp.Store.PlatformElevation, UnitTypeId.Meters),
-                    draw,
-                    level
-                );
-                transaction.Commit();
-            }
-        }
-
-        private class XYZComparer : IEqualityComparer<XYZ>
-        {
-            private double _tolerance;
-            public XYZComparer(double tolerance) => _tolerance = tolerance;
-
-            public bool Equals(XYZ a, XYZ b)
-            {
-                return a.IsAlmostEqualTo(b, _tolerance);
-            }
-
-            public int GetHashCode(XYZ obj)
-            {
-                return 0;
-            }
-        }
-    }
-
-    public static class TerrainCheckCommand_
+    public static class TerrainCheckCommand_Old
     {
         internal static void Execute(UIApplication uiApp, bool draw = false)
         {
@@ -659,7 +500,6 @@ namespace GvcRevitPlugins.TerrainCheck
             {
                 tx.Start();
 
-                // Converte unbound para bound
                 Line drawLine = line;
                 if (!line.IsBound)
                 {
@@ -673,10 +513,9 @@ namespace GvcRevitPlugins.TerrainCheck
                 XYZ p1_draw = drawLine.GetEndPoint(1);
                 XYZ dir = (p1_draw - p0_draw).Normalize();
 
-                // Garante que a direção do plano seja ortogonal à linha
                 XYZ up = XYZ.BasisZ;
                 if (Math.Abs(dir.DotProduct(up)) > 0.99)
-                    up = XYZ.BasisX; // evita degeneração se a linha for vertical
+                    up = XYZ.BasisX; 
 
                 XYZ right = dir.CrossProduct(up).Normalize();
                 XYZ normal = right.CrossProduct(dir).Normalize();
@@ -685,19 +524,19 @@ namespace GvcRevitPlugins.TerrainCheck
                 SketchPlane sketch = SketchPlane.Create(doc, plane);
 
                 ModelCurve mc = doc.Create.NewModelCurve(drawLine, sketch);
-                Draw.modelCurves.Add(mc); // armazena se necessário
+                modelCurves.Add(mc);
 
                 tx.Commit();
             }
         }
 
-        public static void _XYZ(Document doc, IEnumerable<XYZ> p)
+        public static void _XYZ(Document doc, IEnumerable<XYZ> p, double size = 0.5)
         {
             foreach (XYZ point in p)
-                _XYZ(doc, point);
+                _XYZ(doc, point, size);
         }
 
-        public static void _XYZ(Document doc, XYZ p)
+        public static void _XYZ(Document doc, XYZ p, double size = 0.5)
         {
             using (Transaction transaction = new Transaction(doc, "Draw XYZ Point"))
             {
@@ -709,7 +548,7 @@ namespace GvcRevitPlugins.TerrainCheck
                     return;
                 }
 
-                double radius = 0.5;
+                double radius = size;
 
                 Arc arc = Arc.Create(p + new XYZ(0, 0, -radius), p + new XYZ(0, 0, radius), p + new XYZ(radius, 0, 0));
 

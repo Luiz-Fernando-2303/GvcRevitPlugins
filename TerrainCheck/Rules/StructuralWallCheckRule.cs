@@ -11,16 +11,13 @@ namespace GvcRevitPlugins.TerrainCheck.Rules
         public bool IsActive { get; set; } = true;
         public string Name => "Structural_Wall";
         public string Description => "Checks the structural wall of the terrain";
-        public string Color => "#FF0000";
+        public Color ColorRGB => new Color(255, 255, 0);
         public int WallTypeId { get; set; }
         public string WallTypeName { get; set; } = "Resultado Talude Arrimo";
 
         public Action<UIDocument, XYZ[], XYZ, XYZ[], double, bool, Level> Execute => (uidoc, startPoints, normal, boundaryPoints, baseElevation, draw, Level) =>
         {
-            WallType wallType = new FilteredElementCollector(uidoc.Document)
-                               .OfClass(typeof(WallType))
-                               .OfCategory(BuiltInCategory.OST_Walls)
-                               .FirstOrDefault(w => w.Name.Equals(WallTypeName)) as WallType; //TODO: Select a wall type
+            WallType wallType = GvcRevitPlugins.Shared.Utils.RevitUtils.GetOrCreateWallType(uidoc, WallTypeName, BuiltInCategory.OST_Walls, ColorRGB);
 
             if (wallType == null)
                 TaskDialog.Show("Error", "Cannot find the specified wall type.");
