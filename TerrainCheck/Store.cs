@@ -1,4 +1,6 @@
-﻿using GvcRevitPlugins.Shared.UI;
+﻿using Autodesk.Revit.DB;
+using GvcRevitPlugins.Shared.UI;
+using System.Collections.Generic;
 
 namespace GvcRevitPlugins.TerrainCheck
 {
@@ -7,6 +9,7 @@ namespace GvcRevitPlugins.TerrainCheck
         public int BuildingFaceId { get; set; }
         public int TerrainBoundaryId { get; set; }
         public int SubdivisionLevel { get; set; } = 10;
+        public List<XYZ> RailingPoins { get; set; }
 
         private double _platformElevation;
         public double PlatformElevation

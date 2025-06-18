@@ -23,7 +23,7 @@ namespace GvcRevitPlugins.TerrainCheck.Rules
         {
             double StrucWallHeight = UnitUtils.ConvertToInternalUnits(TerrainCheckApp._thisApp.Store.TerrainCheckStrucWallHeight, UnitTypeId.Meters);
 
-            WallType wallType = GvcRevitPlugins.Shared.Utils.RevitUtils.GetOrCreateWallType(uidoc, WallTypeName, BuiltInCategory.OST_Walls, ColorRGB);
+            WallType wallType = Shared.Utils.RevitUtils.GetOrCreateWallType(uidoc, WallTypeName, BuiltInCategory.OST_Walls, ColorRGB);
 
             if (wallType == null)
                 TaskDialog.Show("Error", "Cannot find the specified wall type.");
@@ -61,7 +61,9 @@ namespace GvcRevitPlugins.TerrainCheck.Rules
             if (true) //TODO: Fix draw option
             {
                 foreach (Curve curve in resultCurves)
+                {
                     Wall.Create(uidoc.Document, curve, wallType.Id, Level.Id, minimumDistance, 0.0, false, false);
+                }
             }
         };
 

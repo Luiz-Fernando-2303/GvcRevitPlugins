@@ -1,13 +1,10 @@
 ﻿using Autodesk.Revit.DB;
 using Autodesk.Revit.DB.Architecture;
-using Autodesk.Revit.DB.Events;
 using Autodesk.Revit.UI;
 using GvcRevitPlugins.TerrainCheck.Rules;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Net;
-using System.Windows.Controls;
 using utils = GvcRevitPlugins.Shared.Utils;
 
 namespace GvcRevitPlugins.TerrainCheck
@@ -44,6 +41,7 @@ namespace GvcRevitPlugins.TerrainCheck
                 TaskDialog.Show("Null Error", "Terrain boundary lines are null");
                 return;
             }
+            Draw._Curve(doc, terrainBoundaryLines);
 
             Face[] filteredTopoFaces = FilterTopoFaces(doc, toposolidId, out Toposolid toposolid);
             if (filteredTopoFaces == null || filteredTopoFaces.All(x => x is null))
@@ -58,6 +56,7 @@ namespace GvcRevitPlugins.TerrainCheck
                 TaskDialog.Show("Null Error", "Boundary points are null");
                 return;
             }
+            TerrainCheckApp._thisApp.Store.RailingPoins = boundaryPoints.ToList();
 
             using (Transaction transaction = new Transaction(doc, "EMCCAMP - Terrain Check"))
             {
@@ -171,7 +170,7 @@ namespace GvcRevitPlugins.TerrainCheck
                 XYZ projectedPoint = ProjectPointOntoTopography(terrainFaces, startPoint);
                 projectedPoints.Add(projectedPoint);
 
-                Draw._Line(doc, ray);
+                Draw._Curve(doc, ray);
                 Draw._XYZ(doc, intersectionResults.get_Item(0).XYZPoint, 0.2);
             }
 
@@ -217,222 +216,6 @@ namespace GvcRevitPlugins.TerrainCheck
                         result.Add(face);
                 }
             }
-
-            return result.ToArray();
-        }
-
-        private static bool FilterPlanes(XYZ normal) => !(normal.X == 1 || normal.X == -1 || normal.Y == 1 || normal.Y == -1 || normal.Z == -1);
-    }
-
-    public static class TerrainCheckCommand_Old
-    {
-        internal static void Execute(UIApplication uiApp, bool draw = false)
-        {
-            var uiDoc = uiApp.ActiveUIDocument;
-            var doc = uiDoc.Document;
-
-            double platformElevation = UnitUtils.ConvertToInternalUnits(TerrainCheckApp._thisApp.Store.PlatformElevation, UnitTypeId.Meters);
-            int terrainBoundaryId = TerrainCheckApp._thisApp.Store.TerrainBoundaryId;
-            int subdivisionLevel = TerrainCheckApp._thisApp.Store.SubdivisionLevel;
-
-            (XYZ[] faceProjection, XYZ faceNormal, Level level) = GetSelectedFace(uiDoc, subdivisionLevel);
-            if (faceNormal is null || faceProjection.All(x => x is null))
-            {
-                TaskDialog.Show("Null Error", "Face normal is null");
-                return;
-            }
-            Draw._XYZ(doc, faceProjection);
-            Draw._XYZ(doc, faceNormal);
-
-            Curve[] terrainBoundaryLines = GetTerrainBoundaryLines(doc, terrainBoundaryId, out ElementId toposolidId);
-            if (terrainBoundaryLines == null || terrainBoundaryLines.All(x => x is null))
-            {
-                TaskDialog.Show("Null Error", "Terrain boundary lines are null");
-                return;
-            }
-            Draw._Curve(doc, terrainBoundaryLines);
-
-            Face[] filteredTopoFaces = FilterTopoFaces(doc, toposolidId, out Toposolid toposolid);
-            if (filteredTopoFaces == null || filteredTopoFaces.All(x => x is null))
-            {
-                TaskDialog.Show("Null Error", "Filtered topo faces are null");
-                return;
-            }
-
-            XYZ[] boundaryPoints = FindIntersectionPoints(faceProjection, faceNormal, terrainBoundaryLines, filteredTopoFaces);
-            if (boundaryPoints is null || boundaryPoints.All(x => x is null))
-            {
-                TaskDialog.Show("Null Error", "Boundary points are null");
-                return;
-            }
-            Draw._XYZ(doc, boundaryPoints);
-
-            using (Transaction transaction = new Transaction(doc, "EMCCAMP - Terrain Check"))
-            {
-                transaction.Start();
-                CheckRules.Execute(uiDoc, faceProjection, faceNormal, boundaryPoints, platformElevation, draw, level);
-                transaction.Commit();
-            }
-        }
-
-        internal static Curve[] GetTerrainBoundaryLines(Document doc, int railingId, out ElementId toposolidId)
-        {
-            toposolidId = null;
-            Element element = doc.GetElement(new ElementId(railingId)) as Element;
-
-            FamilyInstance familyInstance = element as FamilyInstance;
-            ElementId hostId = null;
-
-            if (element is Railing)
-                hostId = ((Railing)element).HostId;
-
-            if (!(element is Railing))
-            {
-                TaskDialog.Show("Error", "Elemento selecionado não é um Guarda Corpo");
-                return null;
-            }
-
-            Railing railing = element as Railing;
-            toposolidId = railing.HostId;
-
-            return railing.GetPath().ToArray();
-        }
-
-        public static (XYZ[], XYZ, Level) GetSelectedFace(UIDocument uiDoc, int subdivisionLevel)
-        {
-            Reference pickedRef = uiDoc.Selection.PickObject(Autodesk.Revit.UI.Selection.ObjectType.Face, "Selecione a face do edifício");
-            if (pickedRef == null) return (null, null, null);
-
-            Element element = uiDoc.Document.GetElement(pickedRef.ElementId);
-
-            GeometryObject geoObject = element.GetGeometryObjectFromReference(pickedRef);
-
-            Transform transform = null;
-            if (element is FamilyInstance familyInstance)
-                transform = familyInstance.GetTransform();
-
-            if (!(geoObject is Face))
-            {
-                TaskDialog.Show("Error", "The selected object is not a face.");
-                return (null, null, null);
-            }
-
-            Face selectedFace = geoObject as Face;
-
-            EdgeArrayArray edgeLoops = selectedFace.EdgeLoops;
-            List<Line> boundaryLines = new List<Line>();
-
-            foreach (EdgeArray edgeArray in edgeLoops)
-                foreach (Edge edge in edgeArray)
-                    if (edge.AsCurve() is Line line)
-                        boundaryLines.Add(line);
-
-            XYZ startPoint = null;
-            XYZ endPoint = null;
-            foreach (Line line in boundaryLines) //TODO: Refactor this
-            {
-                if (line.Direction.Z != 0) continue;
-
-                Line actualLine = line;
-
-                if (transform != null) actualLine = actualLine.CreateTransformed(transform) as Line;
-
-                XYZ start = actualLine.GetEndPoint(0);
-                XYZ end = actualLine.GetEndPoint(1);
-                startPoint = new XYZ(start.X, start.Y, 0);
-                endPoint = new XYZ(end.X, end.Y, 0);
-
-                break;
-            }
-
-            if (startPoint is null || endPoint is null) return (null, null, null);
-
-            XYZ[] result = Shared.Utils.XYZUtils.DivideEvenly(startPoint, endPoint, subdivisionLevel);
-
-            if (result is null || result.All(x => x is null)) return (null, null, null);
-
-            XYZ resultNormal = (selectedFace as PlanarFace).FaceNormal;
-            if (transform != null)
-                resultNormal = transform.OfVector(resultNormal).Normalize();
-
-            ElementId levelId = uiDoc.Document.GetElement(pickedRef.ElementId).LevelId;
-            Level level = uiDoc.Document.GetElement(levelId) as Level;
-
-            return (result, resultNormal, level);
-        }
-
-        private static XYZ[] FindIntersectionPoints(XYZ[] startPoints, XYZ normal, Curve[] boundaryPath, Face[] terrainFaces)
-        {
-            XYZ[] boundaryPoints = new XYZ[startPoints.Length];
-
-            for (int i = 0; i < startPoints.Length; i++)
-            {
-                Line rayPath = Line.CreateUnbound(startPoints[i], normal);
-                XYZ foundIntersection = null;
-
-                for (int j = 0; j < boundaryPath.Length; j++)
-                {
-                    var tst1 = boundaryPath[j].GetEndPoint(0);
-                    var tst2 = boundaryPath[j].GetEndPoint(1);
-                    SetComparisonResult result = rayPath.Intersect(boundaryPath[j], out IntersectionResultArray intersectionResults);
-
-                    if (result != SetComparisonResult.Overlap) continue;
-
-                    XYZ intersectionResultPoint = intersectionResults.get_Item(0).XYZPoint;
-                    double angle = normal.AngleTo(intersectionResultPoint - startPoints[i]) * 180 / Math.PI;
-
-                    if (angle > 1) continue;
-
-                    foundIntersection = intersectionResultPoint;
-                    break;
-                }
-
-                if (foundIntersection is null) continue;
-
-                XYZ projected = ProjectPointOntoTopography(terrainFaces, foundIntersection);
-
-                if (projected is null) continue;
-
-                boundaryPoints[i] = projected;
-            }
-
-            if (boundaryPoints.All(x => x is null)) return null;
-
-            return boundaryPoints;
-        }
-
-        private static XYZ ProjectPointOntoTopography(Face[] faces, XYZ point)
-        {
-            foreach (Face face in faces)
-            {
-                if (!FilterPlanes((face as PlanarFace).FaceNormal)) continue;
-                Line infinityCurve = Line.CreateUnbound(new XYZ(point.X, point.Y, 0), new XYZ(0, 0, 1));
-                SetComparisonResult inftest = face.Intersect(infinityCurve, out IntersectionResultArray intersectionResults);
-                if (inftest == SetComparisonResult.Overlap) return intersectionResults.get_Item(0).XYZPoint;
-            }
-            return null;
-        }
-
-        private static Face[] FilterTopoFaces(Document doc, ElementId toposolidId, out Toposolid toposolid)
-        {
-            toposolid = null;
-
-            Element toposolidElem = doc.GetElement(toposolidId);
-
-            if (!(toposolidElem is Toposolid)) return null;
-
-            toposolid = toposolidElem as Toposolid;
-
-            GeometryElement geomElement = toposolid.get_Geometry(new Options());
-
-            Solid[] solids = geomElement.OfType<Solid>().ToArray();
-
-            List<Face> result = new List<Face>();
-
-            foreach (Solid solid in solids)
-                foreach (Face face in solid.Faces)
-                    if (FilterPlanes((face as PlanarFace).FaceNormal))
-                        result.Add(face);
 
             return result.ToArray();
         }
@@ -488,48 +271,6 @@ namespace GvcRevitPlugins.TerrainCheck
             }
         }
 
-        public static void _Line(Document doc, IEnumerable<Line> l)
-        {
-            foreach (Line line in l)
-                _Line(doc, line);
-        }
-
-        public static void _Line(Document doc, Line line)
-        {
-            using (Transaction tx = new Transaction(doc, "Desenhar Linha"))
-            {
-                tx.Start();
-
-                Line drawLine = line;
-                if (!line.IsBound)
-                {
-                    double halfLength = 50;
-                    XYZ p0 = line.Origin - line.Direction * halfLength;
-                    XYZ p1 = line.Origin + line.Direction * halfLength;
-                    drawLine = Line.CreateBound(p0, p1);
-                }
-
-                XYZ p0_draw = drawLine.GetEndPoint(0);
-                XYZ p1_draw = drawLine.GetEndPoint(1);
-                XYZ dir = (p1_draw - p0_draw).Normalize();
-
-                XYZ up = XYZ.BasisZ;
-                if (Math.Abs(dir.DotProduct(up)) > 0.99)
-                    up = XYZ.BasisX; 
-
-                XYZ right = dir.CrossProduct(up).Normalize();
-                XYZ normal = right.CrossProduct(dir).Normalize();
-
-                Plane plane = Plane.CreateByNormalAndOrigin(normal, p0_draw);
-                SketchPlane sketch = SketchPlane.Create(doc, plane);
-
-                ModelCurve mc = doc.Create.NewModelCurve(drawLine, sketch);
-                modelCurves.Add(mc);
-
-                tx.Commit();
-            }
-        }
-
         public static void _XYZ(Document doc, IEnumerable<XYZ> p, double size = 0.5)
         {
             foreach (XYZ point in p)
@@ -538,16 +279,23 @@ namespace GvcRevitPlugins.TerrainCheck
 
         public static void _XYZ(Document doc, XYZ p, double size = 0.5)
         {
-            using (Transaction transaction = new Transaction(doc, "Draw XYZ Point"))
+            if (!doc.IsModifiable)
             {
-                transaction.Start();
-
-                if (p == null)
+                using (Transaction transaction = new Transaction(doc, "Draw XYZ Point"))
                 {
-                    transaction.RollBack();
-                    return;
-                }
+                    transaction.Start();
 
+                    Execute();
+
+                    transaction.Commit();
+                }
+                return;
+            }
+
+            Execute();
+
+            void Execute()
+            {
                 double radius = size;
 
                 Arc arc = Arc.Create(p + new XYZ(0, 0, -radius), p + new XYZ(0, 0, radius), p + new XYZ(radius, 0, 0));
@@ -575,8 +323,6 @@ namespace GvcRevitPlugins.TerrainCheck
                 shape.Name = "Sphere at " + p.ToString();
 
                 directShapes.Add(shape);
-
-                transaction.Commit();
             }
         }
 
@@ -586,17 +332,65 @@ namespace GvcRevitPlugins.TerrainCheck
                 _Curve(doc, curve);
         }
 
-        public static void _Curve(Document doc, Curve c)
+        public static void _Curve(Document doc, Curve curve)
         {
-            using (Transaction transaction = new Transaction(doc, "Draw Curve"))
+            if (!doc.IsModifiable)
+
+                using (Transaction transaction = new Transaction(doc, "Draw Curve"))
+                {
+                    transaction.Start();
+                    Execute();
+                    transaction.Commit();
+                }
+
+            else
+                Execute();
+
+            void Execute()
             {
-                transaction.Start();
+                Curve boundCurve = ToBound(curve);
 
-                Plane plane = Plane.CreateByNormalAndOrigin(XYZ.BasisZ, c.GetEndPoint(0));
+                Plane plane = GetPlane(boundCurve);
                 SketchPlane sketchPlane = SketchPlane.Create(doc, plane);
-                ModelCurve modelCurve = doc.Create.NewModelCurve(c, sketchPlane);
+                doc.Create.NewModelCurve(boundCurve, sketchPlane);
+            }
 
-                transaction.Commit();
+            Plane GetPlane(Curve curve)
+            {
+                XYZ p0 = curve.GetEndPoint(0);
+                XYZ p1 = curve.GetEndPoint(1);
+                XYZ direction = (p1 - p0).Normalize();
+
+                XYZ normal;
+                if (direction.CrossProduct(XYZ.BasisZ).IsZeroLength())
+                    normal = XYZ.BasisX;
+
+                else
+                    normal = direction.CrossProduct(XYZ.BasisZ).Normalize();
+
+                XYZ yVector = normal.CrossProduct(direction).Normalize();
+
+                return Plane.CreateByOriginAndBasis(p0, direction, yVector);
+            }
+
+            Curve ToBound(Curve curve)
+            {
+                if (curve.IsBound)
+                    return curve;
+
+                if (curve is Line line)
+                {
+                    XYZ origin = line.Origin;
+                    XYZ dir = line.Direction;
+
+                    double length = 1000;
+                    XYZ p0 = origin - dir * (length / 2);
+                    XYZ p1 = origin + dir * (length / 2);
+
+                    return Line.CreateBound(p0, p1);
+                }
+                else
+                    throw new ArgumentException("Curve type not supported for unbound conversion.");
             }
         }
     }

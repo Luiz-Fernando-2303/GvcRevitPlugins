@@ -17,16 +17,21 @@ namespace GvcRevitPlugins.TerrainCheck.Rules
 
         public Action<UIDocument, XYZ[], XYZ, XYZ[], double, bool, Level> Execute => (uidoc, startPoints, normal, boundaryPoints, baseElevation, draw, Level) =>
         {
-            WallType wallType = GvcRevitPlugins.Shared.Utils.RevitUtils.GetOrCreateWallType(uidoc, WallTypeName, BuiltInCategory.OST_Walls, ColorRGB);
+            WallType wallType = Shared.Utils.RevitUtils.GetOrCreateWallType(uidoc, WallTypeName, BuiltInCategory.OST_Walls, ColorRGB);
+
+            var points = TerrainCheckApp._thisApp.Store.RailingPoins;
+            var highestPoint = points.OrderByDescending(p => p.Z).FirstOrDefault();
+
+            Line horizontalLine = Line.CreateBound(
+                new XYZ(highestPoint.X - 1000, highestPoint.Y, highestPoint.Z),
+                new XYZ(highestPoint.X + 1000, highestPoint.Y, highestPoint.Z)
+            );
+            Draw._Curve(uidoc.Document, horizontalLine);
 
             if (wallType == null)
                 TaskDialog.Show("Error", "Cannot find the specified wall type.");
 
-            Level level = new FilteredElementCollector(uidoc.Document)
-                        .OfClass(typeof(Level))
-                        .FirstOrDefault(l => l.Name.Equals("Level 1")) as Level; //TODO: Select a level
-
-            if (level == null)
+            if (Level == null)
                 TaskDialog.Show("Error", "Cannot find the specified level.");
 
             double minimumDistance = UnitUtils.ConvertToInternalUnits(2, UnitTypeId.Meters);
@@ -52,8 +57,27 @@ namespace GvcRevitPlugins.TerrainCheck.Rules
                 resultCurves.Add(wallLine);
             }
 
+            List<Curve> allCurvesToDraw = new List<Curve>();
             foreach (Curve curve in resultCurves)
-                Wall.Create(uidoc.Document, curve, wallType.Id, level.Id, 30.0, 0.0, false, false);
+            {
+                allCurvesToDraw.Add(curve);
+
+                IntersectionResult P0 = horizontalLine.Project(curve.GetEndPoint(0));
+                IntersectionResult P1 = horizontalLine.Project(curve.GetEndPoint(1));
+
+                if (P0 == null || P1 == null)
+                    continue;
+
+                Line P0line = Line.CreateBound(P0.XYZPoint, curve.GetEndPoint(0));
+                Line P1line = Line.CreateBound(P1.XYZPoint, curve.GetEndPoint(1));
+
+                allCurvesToDraw.Add(P0line);
+                allCurvesToDraw.Add(P1line);
+
+                //Wall.Create(uidoc.Document, curve, wallType.Id, Level.Id, 30, 0.0, false, false);
+            }
+
+            Draw._Curve(uidoc.Document, allCurvesToDraw);
         };
     }
 }
