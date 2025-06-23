@@ -1,4 +1,5 @@
 ﻿using Autodesk.Revit.DB;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 
@@ -6,6 +7,201 @@ namespace GvcRevitPlugins.Shared.Utils
 {
     public static class XYZUtils
     {
+        public class SpatialGrid
+        {
+            public double CellSize { get; }
+            private Dictionary<(int, int, int), List<XYZ>> grid;
+
+            public SpatialGrid(double cellSize)
+            {
+                CellSize = cellSize;
+                grid = new Dictionary<(int, int, int), List<XYZ>>();
+            }
+
+            public void Add(XYZ point)
+            {
+                var key = GetCellKey(point);
+                if (!grid.ContainsKey(key))
+                    grid[key] = new List<XYZ>();
+                grid[key].Add(point);
+            }
+
+            public List<XYZ> GetPointsInCell(XYZ point)
+            {
+                var key = GetCellKey(point);
+                return grid.ContainsKey(key) ? grid[key] : new List<XYZ>();
+            }
+
+            private (int, int, int) GetCellKey(XYZ point)
+            {
+                int xIndex = (int)Math.Floor(point.X / CellSize);
+                int yIndex = (int)Math.Floor(point.Y / CellSize);
+                int zIndex = (int)Math.Floor(point.Z / CellSize);
+                return (xIndex, yIndex, zIndex);
+            }
+
+            public List<XYZ> GetNeighboringPoints(XYZ point, int range = 2)
+            {
+                var neighbors = new List<XYZ>();
+                var (x, y, z) = GetCellKey(point);
+
+                for (int dx = -range; dx <= range; dx++)
+                {
+                    for (int dy = -range; dy <= range; dy++)
+                    {
+                        for (int dz = -range; dz <= range; dz++)
+                        {
+                            var neighborKey = (x + dx, y + dy, z + dz);
+                            if (grid.TryGetValue(neighborKey, out var pointsInCell))
+                            {
+                                neighbors.AddRange(pointsInCell);
+                            }
+                        }
+                    }
+                }
+
+                return neighbors;
+            }
+        }
+
+        public static List<XYZ> TerrainValleys(List<XYZ> terrainPoints, double cellSize = 1, double tolerance = 0.01, int iterations = 2)
+        {
+            var points = new List<XYZ>(terrainPoints);
+
+            for (int i = 0; i < iterations; i++)
+            {
+                points = TerrainValleys(points, cellSize * i, tolerance * tolerance);
+                if (points.Count == 0) break;
+            }
+
+            return points;
+        }
+
+        public static List<XYZ> TerrainValleys(List<XYZ> terrainPoints, double cellSize = 1, double tolerance = 0.01)
+        {
+            SpatialGrid grid = new SpatialGrid(cellSize);
+            terrainPoints.ForEach(point => grid.Add(point));
+
+            List<XYZ> valleys = new List<XYZ>();
+
+            foreach (XYZ point in terrainPoints)
+            {
+                List<XYZ> neighbors = grid.GetNeighboringPoints(point);
+                if (neighbors.Count == 0) continue;
+
+                bool isValley = true;
+
+                foreach (XYZ neighbor in neighbors)
+                {
+                    if (neighbor.IsAlmostEqualTo(point, tolerance))
+                        continue;
+
+                    if (neighbor.Z + tolerance < point.Z)
+                    {
+                        isValley = false;
+                        break;
+                    }
+                }
+
+                if (isValley)
+                {
+                    valleys.Add(point);
+                }
+            }
+
+            return valleys;
+        }
+
+        public static List<XYZ> TerrainPeaks(List<XYZ> terrainPoints, double cellSize = 1, double tolerance = 0.01, int iterations = 2)
+        {
+            var points = new List<XYZ>(terrainPoints);
+
+            for (int i = 0; i < iterations; i++)
+            {
+                points = TerrainPeaks(points, cellSize * i, tolerance * tolerance);
+                if (points.Count > 0) break;
+            }
+
+            return points;
+        }
+
+        public static List<XYZ> TerrainPeaks(List<XYZ> terrainPoints, double cellSize = 1, double tolerance = 0.01)
+        {
+            SpatialGrid grid = new SpatialGrid(cellSize);
+            terrainPoints.ForEach(point => grid.Add(point));
+            List<XYZ> peaks = new List<XYZ>();
+            foreach (XYZ point in terrainPoints)
+            {
+                List<XYZ> neighbors = grid.GetNeighboringPoints(point);
+                if (neighbors.Count == 0) continue;
+                bool isPeak = true;
+                foreach (XYZ neighbor in neighbors)
+                {
+                    if (neighbor.IsAlmostEqualTo(point, tolerance))
+                        continue;
+                    if (neighbor.Z - tolerance > point.Z)
+                    {
+                        isPeak = false;
+                        break;
+                    }
+                }
+                if (isPeak)
+                {
+                    peaks.Add(point);
+                }
+            }
+            return peaks;
+        }
+
+        public static List<XYZ> TerrainPoints(Document doc, ElementId toposolidId, int subdivision)
+        {
+            Element toposolidElem = doc.GetElement(toposolidId);
+            if (toposolidElem is not Toposolid toposolid)
+                return null;
+
+            GeometryElement geomElement = toposolid.get_Geometry(new Options());
+            Solid[] solids = geomElement.OfType<Solid>().Where(s => s.Faces.Size > 0).ToArray();
+
+            List<XYZ> points = new List<XYZ>();
+
+            foreach (Solid solid in solids)
+            {
+                foreach (Face face in solid.Faces)
+                {
+                    Mesh mesh = face.Triangulate();
+                    if (mesh == null) continue;
+
+                    int triangleCount = mesh.NumTriangles;
+
+                    for (int t = 0; t < triangleCount; t++)
+                    {
+                        MeshTriangle triangle = mesh.get_Triangle(t);
+
+                        XYZ A = triangle.get_Vertex(0);
+                        XYZ B = triangle.get_Vertex(1);
+                        XYZ C = triangle.get_Vertex(2);
+
+                        for (int i = 0; i <= subdivision; i++)
+                        {
+                            for (int j = 0; j <= subdivision - i; j++)
+                            {
+                                double u = (double)i / subdivision;
+                                double v = (double)j / subdivision;
+                                double w = 1.0 - u - v;
+
+                                XYZ point = (A * u) + (B * v) + (C * w);
+
+                                if (!points.Any(p => p.IsAlmostEqualTo(point)))
+                                    points.Add(point);
+                            }
+                        }
+                    }
+                }
+            }
+
+            return points;
+        }
+
         public static XYZ FaceNormal(Face face, out UV surfaceUV)
         {
             surfaceUV = new UV();
