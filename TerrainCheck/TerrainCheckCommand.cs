@@ -2,10 +2,20 @@
 using Autodesk.Revit.DB.Architecture;
 using Autodesk.Revit.UI;
 using GvcRevitPlugins.TerrainCheck.Rules;
+using Newtonsoft.Json.Linq;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Security.Cryptography.X509Certificates;
 using utils = GvcRevitPlugins.Shared.Utils;
+
+// Formas de divisa: Parede normal, Parade cortina, Linhas do modelo, guarda corpo, **linha de divisa, superfice topografica e vinculo AutoCad 2D
+
+// passo 1: configurar parametros (talude ou arrimo, norma tecnica (CEF, execucaco, estudal, municipal, federal, dnit e der) e [tipo de espaco])
+// passo 2: clicar nos objetos de referencia (linha de divisa(mostra para o usuario e obrigatorio), divisa de analise(guarda corpo), face(do edificio), piso(plato acabado))
+// passo 3: visualizacao dos resultados (vista 3D, planta, corte, quantitativos e graficos)
+// passo 4: validacao dos resultados (area permeavel, voluem de concreto, corte\aterro e drenagem)
+// passo 5: publicacao de resultados (automacao de prancha, cotas e detalhamentos executivos)
 
 namespace GvcRevitPlugins.TerrainCheck
 {
@@ -13,214 +23,197 @@ namespace GvcRevitPlugins.TerrainCheck
     {
         internal static void Execute(UIApplication uiApp, bool draw = false)
         {
-            TerrainCheckCommand_.Execute(uiApp, draw);
+            TerrainCheckCommand_Wall wallCommand = new();
+            wallCommand.Execute(uiApp);
         }
     }
 
-    public static class TerrainCheckCommand_
-    {
-        internal static void Execute(UIApplication uiApp, bool draw = false)
-        {
-            var uiDoc = uiApp.ActiveUIDocument;
-            var doc = uiDoc.Document;
+    public class TerrainCheckCommand_Wall : BaseTerrainCheckCommand { }
 
-            double platformElevation = UnitUtils.ConvertToInternalUnits(TerrainCheckApp._thisApp.Store.PlatformElevation, UnitTypeId.Meters);
-            int terrainBoundaryId = TerrainCheckApp._thisApp.Store.TerrainBoundaryId;
+    public class BaseTerrainCheckCommand
+    {
+        public class ProjectedFaceData
+        {
+            public XYZ[] FaceProjection { get; set; }
+            public XYZ FaceNormal { get; set; }
+            public Level Level { get; set; }
+            public Face Face { get; set; }
+        }
+
+        public virtual void Execute(UIApplication uiApp)
+        {
+            UIDocument uiDoc = uiApp.ActiveUIDocument;
+            Document doc = uiDoc.Document;
+
+            double platformElevation = UnitUtils.ConvertToInternalUnits(GetPlatformElevation(uiDoc), UnitTypeId.Meters);
+            if (platformElevation == double.NegativeInfinity) return;
+
+            ElementId terrainBoundaryId = GetTerrainBoundaryId(uiDoc);
             int subdivisionLevel = TerrainCheckApp._thisApp.Store.SubdivisionLevel;
 
-            (XYZ[] faceProjection, XYZ faceNormal, Level level, Face face) = GetSelectedFace(uiDoc, subdivisionLevel);
-            if (faceNormal is null || faceProjection.All(x => x is null))
-            {
-                TaskDialog.Show("Null Error", "Face normal is null");
-                return;
-            }
+            ProjectedFaceData projectedFaceData = GetFaceReferences(uiDoc, subdivisionLevel);
+            if (projectedFaceData == null || projectedFaceData.FaceNormal == null || projectedFaceData.FaceProjection.All(p => p == null)) return;
 
-            Curve[] terrainBoundaryLines = GetTerrainBoundaryLines(doc, terrainBoundaryId, out ElementId toposolidId);
-            if (terrainBoundaryLines == null || terrainBoundaryLines.All(x => x is null))
-            {
-                TaskDialog.Show("Null Error", "Terrain boundary lines are null");
-                return;
-            }
-            Draw._Curve(doc, terrainBoundaryLines);
+            Curve[] terrainBoundaryLines = GetTerrainBoundaryPath(doc, terrainBoundaryId, out ElementId toposolidId);
+            if (terrainBoundaryLines == null || terrainBoundaryLines.All(c => c == null)) return;
 
             Face[] filteredTopoFaces = FilterTopoFaces(doc, toposolidId, out Toposolid toposolid);
-            if (filteredTopoFaces == null || filteredTopoFaces.All(x => x is null))
-            {
-                TaskDialog.Show("Null Error", "Filtered topo faces are null");
-                return;
-            }
+            if (filteredTopoFaces == null || filteredTopoFaces.All(f => f == null)) return;
 
-            XYZ[] boundaryPoints = FindIntersectionPoints(doc, face, faceNormal, terrainBoundaryLines, filteredTopoFaces, subdivisionLevel);
-            if (boundaryPoints is null || boundaryPoints.All(x => x is null))
-            {
-                TaskDialog.Show("Null Error", "Boundary points are null");
-                return;
-            }
-            TerrainCheckApp._thisApp.Store.RailingPoins = boundaryPoints.ToList();
+            XYZ[] boundaryPoints = FindIntersectionPoints(doc, projectedFaceData.Face, projectedFaceData.FaceNormal, terrainBoundaryLines, filteredTopoFaces, subdivisionLevel);
+            if (boundaryPoints == null || boundaryPoints.All(p => p == null)) return;
 
-            using (Transaction transaction = new Transaction(doc, "EMCCAMP - Terrain Check"))
-            {
-                transaction.Start();
-                CheckRules.Execute(uiDoc, faceProjection, faceNormal, boundaryPoints, platformElevation, draw, level);
-                transaction.Commit();
-            }
+            using var transaction = new Transaction(doc, "EMCCAMP - Terrain Check");
+            transaction.Start();
+
+            CheckRules.Execute(uiDoc, projectedFaceData.FaceProjection, projectedFaceData.FaceNormal, boundaryPoints, platformElevation, true, projectedFaceData.Level);
+
+            transaction.Commit();
         }
 
-        internal static Curve[] GetTerrainBoundaryLines(Document doc, int railingId, out ElementId toposolidId)
-        {
-            toposolidId = null;
-            Element element = doc.GetElement(new ElementId(railingId)) as Element;
-
-            FamilyInstance familyInstance = element as FamilyInstance;
-            ElementId hostId = null;
-
-            if (element is Railing)
-                hostId = ((Railing)element).HostId;
-
-            if (!(element is Railing))
-            {
-                TaskDialog.Show("Error", "Elemento selecionado não é um Guarda Corpo");
-                return null;
-            }
-
-            Railing railing = element as Railing;
-            toposolidId = railing.HostId;
-
-            return railing.GetPath().ToArray();
-        }
-
-        public static (XYZ[], XYZ, Level, Face) GetSelectedFace(UIDocument uiDoc, int subdivisionLevel)
-        {
-            Reference pickedRef = uiDoc.Selection.PickObject(Autodesk.Revit.UI.Selection.ObjectType.Face, "Selecione a face do edifício");
-            if (pickedRef == null) return (null, null, null, null);
-
-            Element element = uiDoc.Document.GetElement(pickedRef.ElementId);
-
-            GeometryObject geoObject = element.GetGeometryObjectFromReference(pickedRef);
-
-            Transform transform = null;
-            if (element is FamilyInstance familyInstance)
-                transform = familyInstance.GetTransform();
-
-            if (!(geoObject is Face))
-            {
-                TaskDialog.Show("Error", "The selected object is not a face.");
-                return (null, null, null, null);
-            }
-
-            Face selectedFace = geoObject as Face;
-
-            EdgeArrayArray edgeLoops = selectedFace.EdgeLoops;
-            List<Line> boundaryLines = new List<Line>();
-
-            foreach (EdgeArray edgeArray in edgeLoops)
-                foreach (Edge edge in edgeArray)
-                    if (edge.AsCurve() is Line line)
-                        boundaryLines.Add(line);
-
-            XYZ startPoint = null;
-            XYZ endPoint = null;
-            foreach (Line line in boundaryLines) //TODO: Refactor this
-            {
-                if (line.Direction.Z != 0) continue;
-
-                Line actualLine = line;
-
-                if (transform != null) actualLine = actualLine.CreateTransformed(transform) as Line;
-
-                XYZ start = actualLine.GetEndPoint(0);
-                XYZ end = actualLine.GetEndPoint(1);
-                startPoint = new XYZ(start.X, start.Y, 0);
-                endPoint = new XYZ(end.X, end.Y, 0);
-
-                break;
-            }
-
-            if (startPoint is null || endPoint is null) return (null, null, null, null);
-
-            XYZ[] result = utils.XYZUtils.DivideEvenly(startPoint, endPoint, subdivisionLevel);
-
-            if (result is null || result.All(x => x is null)) return (null, null, null, null);
-
-            XYZ resultNormal = (selectedFace as PlanarFace).FaceNormal;
-            if (transform != null)
-                resultNormal = transform.OfVector(resultNormal).Normalize();
-
-            ElementId levelId = uiDoc.Document.GetElement(pickedRef.ElementId).LevelId;
-            Level level = uiDoc.Document.GetElement(levelId) as Level;
-
-            return (result, resultNormal, level, selectedFace);
-        }
-
-        public static XYZ[] FindIntersectionPoints(Document doc, Face face, XYZ normal, IEnumerable<Curve> boundaryPath, Face[] terrainFaces, int subdivisionsPerCurve)
+        public virtual XYZ[] FindIntersectionPoints(Document doc, Face face, XYZ normal, IEnumerable<Curve> boundaryPath, Face[] terrainFaces, int subdivisionsPerCurve)
         {
             if (face == null || normal == null || boundaryPath == null || !boundaryPath.Any()) return null;
 
-            List<XYZ> projectedPoints = new();
+            List<XYZ> result = new();
+            var startPoints = utils.XYZUtils.DivideCurvesEvenly(boundaryPath, subdivisionsPerCurve);
+            var horizontalLine = GetFaceHorizontalLine(face);
 
-            List<XYZ> startPoints = utils.XYZUtils.DivideCurvesEvenly(boundaryPath, subdivisionsPerCurve);
-
-            foreach (XYZ startPoint in startPoints)
+            foreach (var startPoint in startPoints)
             {
-                Line ray = Line.CreateUnbound(startPoint, normal);
-
-                SetComparisonResult result = face.Intersect(ray, out IntersectionResultArray intersectionResults);
-                if (result != SetComparisonResult.Overlap) continue;
-
-                XYZ projectedPoint = ProjectPointOntoTopography(terrainFaces, startPoint);
-                projectedPoints.Add(projectedPoint);
-
+                var ray = Line.CreateUnbound(startPoint, normal); // Simula um "raio" perpendicular
                 Draw._Curve(doc, ray);
-                Draw._XYZ(doc, intersectionResults.get_Item(0).XYZPoint, 0.2);
-            }
 
-            return projectedPoints.ToArray();
-        }
+                var resultSet = horizontalLine?.Intersect(ray, out IntersectionResultArray _);
+                if (resultSet != SetComparisonResult.Overlap) continue;
 
-        private static XYZ ProjectPointOntoTopography(Face[] faces, XYZ point)
-        {
-            foreach (Face face in faces)
-            {
-                XYZ faceNormal = utils.XYZUtils.FaceNormal(face, out UV _);
-
-                if (!FilterPlanes(faceNormal)) continue;
-
-                Line infinityCurve = Line.CreateUnbound(new XYZ(point.X, point.Y, 0), new XYZ(0, 0, 1));
-                SetComparisonResult inftest = face.Intersect(infinityCurve, out IntersectionResultArray intersectionResults);
-                if (inftest == SetComparisonResult.Overlap) return intersectionResults.get_Item(0).XYZPoint;
-            }
-            return null;
-        }
-
-        private static Face[] FilterTopoFaces(Document doc, ElementId toposolidId, out Toposolid toposolid)
-        {
-            toposolid = null;
-
-            Element toposolidElem = doc.GetElement(toposolidId);
-            if (toposolidElem is not Toposolid ts) return null;
-
-            toposolid = ts;
-
-            GeometryElement geomElement = toposolid.get_Geometry(new Options());
-            Solid[] solids = geomElement.OfType<Solid>().Where(s => s.Faces.Size > 0).ToArray();
-
-            List<Face> result = new List<Face>();
-
-            foreach (Solid solid in solids)
-            {
-                foreach (Face face in solid.Faces)
-                {;
-                    XYZ faceNormal = utils.XYZUtils.FaceNormal(face, out UV _);
-
-                    if (FilterPlanes(faceNormal))
-                        result.Add(face);
-                }
+                var projectedPoint = ProjectPointOntoTopography(terrainFaces, startPoint);
+                if (projectedPoint != null)
+                    result.Add(projectedPoint);
             }
 
             return result.ToArray();
         }
 
-        private static bool FilterPlanes(XYZ normal) => !(normal.X == 1 || normal.X == -1 || normal.Y == 1 || normal.Y == -1 || normal.Z == -1);
+        public virtual XYZ ProjectPointOntoTopography(Face[] faces, XYZ point)
+        {
+            foreach (var face in faces)
+            {
+                var normal = utils.XYZUtils.FaceNormal(face, out UV _);
+                if (!FilterPlanes(normal)) continue;
+
+                var verticalLine = Line.CreateUnbound(new XYZ(point.X, point.Y, 0), XYZ.BasisZ);
+                var result = face.Intersect(verticalLine, out IntersectionResultArray intersectionResults);
+                if (result == SetComparisonResult.Overlap)
+                    return intersectionResults.get_Item(0).XYZPoint;
+            }
+
+            return null;
+        }
+
+        public virtual Face[] FilterTopoFaces(Document doc, ElementId toposolidId, out Toposolid toposolid)
+        {
+            toposolid = null;
+            var element = doc.GetElement(toposolidId);
+            if (element is not Toposolid ts) return null;
+            toposolid = ts;
+
+            var geometry = ts.get_Geometry(new Options());
+
+            // Seleciona somente faces com inclinação útil (exclui horizontais e verticais)
+            return geometry.OfType<Solid>()
+                           .Where(s => s.Faces.Size > 0)
+                           .SelectMany(s => s.Faces.Cast<Face>())
+                           .Where(f => FilterPlanes(utils.XYZUtils.FaceNormal(f, out UV _)))
+                           .ToArray();
+        }
+
+        public virtual Curve[] GetTerrainBoundaryPath(Document doc, ElementId railingId, out ElementId toposolidId)
+        {
+            toposolidId = null;
+            if (doc.GetElement(railingId) is not Railing railing) return null;
+
+            toposolidId = railing.HostId;
+            return railing.GetPath()?.ToArray();
+        }
+
+        public virtual ProjectedFaceData GetFaceReferences(UIDocument uiDoc, int subdivisionLevel)
+        {
+            var doc = uiDoc.Document;
+            var pickedRef = uiDoc.Selection.PickObject(Autodesk.Revit.UI.Selection.ObjectType.Face, "Selecione a face do edifício");
+            if (pickedRef == null) return null;
+
+            var element = doc.GetElement(pickedRef.ElementId);
+            var geoObject = element.GetGeometryObjectFromReference(pickedRef);
+            var transform = (element is FamilyInstance fi) ? fi.GetTransform() : Transform.Identity;
+
+            if (geoObject is not PlanarFace selectedFace) return null;
+
+            var horizontalLine = selectedFace
+                .EdgeLoops.Cast<EdgeArray>()
+                .SelectMany(ea => ea.Cast<Edge>())
+                .Select(e => e.AsCurve())
+                .OfType<Line>()
+                .FirstOrDefault(l => l.Direction.Z == 0);
+
+            if (horizontalLine == null) return null;
+
+            // Projeta a linha horizontal para o plano XY (Z = 0)
+            var transformedLine = horizontalLine.CreateTransformed(transform) as Line;
+            var start = new XYZ(transformedLine.GetEndPoint(0).X, transformedLine.GetEndPoint(0).Y, 0);
+            var end = new XYZ(transformedLine.GetEndPoint(1).X, transformedLine.GetEndPoint(1).Y, 0);
+
+            var points = utils.XYZUtils.DivideEvenly(start, end, subdivisionLevel);
+            if (points == null || points.All(p => p == null)) return null;
+
+            return new ProjectedFaceData
+            {
+                FaceProjection = points,
+                FaceNormal = transform.OfVector(selectedFace.FaceNormal).Normalize(),
+                Level = doc.GetElement(element.LevelId) as Level,
+                Face = selectedFace
+            };
+        }
+
+        public virtual double GetPlatformElevation(UIDocument uiDoc)
+        {
+            var pickedRef = uiDoc.Selection.PickObject(Autodesk.Revit.UI.Selection.ObjectType.Face, "Selecione uma face de referência da elevação do platô");
+            if (pickedRef == null) return double.NegativeInfinity;
+
+            var face = uiDoc.Document.GetElement(pickedRef.ElementId).GetGeometryObjectFromReference(pickedRef) as Face;
+            var normal = utils.XYZUtils.FaceNormal(face, out UV uv);
+            return normal != null ? face.Evaluate(uv).Z : double.NegativeInfinity;
+        }
+
+        public virtual ElementId GetTerrainBoundaryId(UIDocument uiDoc)
+        {
+            var pickedRef = uiDoc.Selection.PickObject(Autodesk.Revit.UI.Selection.ObjectType.Element, "Selecione o muro de divisa");
+            return pickedRef != null ? uiDoc.Document.GetElement(pickedRef.ElementId).Id : ElementId.InvalidElementId;
+        }
+
+        public virtual bool FilterPlanes(XYZ normal)
+        {
+            // Ignora planos totalmente verticais ou horizontais
+            return !(Math.Abs(normal.X) == 1 || Math.Abs(normal.Y) == 1 || normal.Z == -1);
+        }
+
+        public virtual Line GetFaceHorizontalLine(Face face)
+        {
+            if (face == null) return null;
+
+            var line = face
+                .EdgeLoops.Cast<EdgeArray>()
+                .SelectMany(ea => ea.Cast<Edge>())
+                .Select(e => e.AsCurve())
+                .OfType<Line>()
+                .FirstOrDefault(l => l.Direction.Z == 0);
+
+            if (line == null) return null;
+
+            var start = line.GetEndPoint(0);
+            var end = line.GetEndPoint(1);
+            return Line.CreateBound(new XYZ(start.X, start.Y, 0), new XYZ(end.X, end.Y, 0));
+        }
     }
 
     public static class Draw
