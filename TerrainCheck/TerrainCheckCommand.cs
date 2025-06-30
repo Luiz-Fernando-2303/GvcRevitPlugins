@@ -23,20 +23,17 @@ namespace GvcRevitPlugins.TerrainCheck
     {
         internal static void Execute(UIApplication uiApp, bool draw = false)
         {
-            TerrainCheckCommand_Wall wallCommand = new();
+            TerrainCheckCommand_ wallCommand = new();
             wallCommand.Execute(uiApp);
         }
     }
 
-    public class TerrainCheckCommand_Wall : BaseTerrainCheckCommand { }
-
-    public class BaseTerrainCheckCommand
+    public class TerrainCheckCommand_
     {
         public class ProjectedFaceData
         {
             public XYZ[] FaceProjection { get; set; }
             public XYZ FaceNormal { get; set; }
-            public Level Level { get; set; }
             public Face Face { get; set; }
         }
 
@@ -45,8 +42,9 @@ namespace GvcRevitPlugins.TerrainCheck
             UIDocument uiDoc = uiApp.ActiveUIDocument;
             Document doc = uiDoc.Document;
 
-            double platformElevation = UnitUtils.ConvertToInternalUnits(GetPlatformElevation(uiDoc), UnitTypeId.Meters);
-            if (platformElevation == double.NegativeInfinity) return;
+            (double platformElevationRaw, Level platformLevel) = GetPlatformElevationWithLevel(uiDoc);
+            double platformElevation = UnitUtils.ConvertToInternalUnits(platformElevationRaw, UnitTypeId.Meters);
+            if (platformElevation == double.NegativeInfinity || platformLevel == null) return;
 
             ElementId terrainBoundaryId = GetTerrainBoundaryId(uiDoc);
             int subdivisionLevel = TerrainCheckApp._thisApp.Store.SubdivisionLevel;
@@ -66,7 +64,7 @@ namespace GvcRevitPlugins.TerrainCheck
             using var transaction = new Transaction(doc, "EMCCAMP - Terrain Check");
             transaction.Start();
 
-            CheckRules.Execute(uiDoc, projectedFaceData.FaceProjection, projectedFaceData.FaceNormal, boundaryPoints, platformElevation, true, projectedFaceData.Level);
+            CheckRules.Execute(uiDoc, projectedFaceData.FaceProjection, projectedFaceData.FaceNormal, boundaryPoints, platformElevation, true, platformLevel);
 
             transaction.Commit();
         }
@@ -78,10 +76,11 @@ namespace GvcRevitPlugins.TerrainCheck
             List<XYZ> result = new();
             var startPoints = utils.XYZUtils.DivideCurvesEvenly(boundaryPath, subdivisionsPerCurve);
             var horizontalLine = GetFaceHorizontalLine(face);
+            Draw._Curve(doc, horizontalLine);
 
             foreach (var startPoint in startPoints)
             {
-                var ray = Line.CreateUnbound(startPoint, normal); // Simula um "raio" perpendicular
+                var ray = Line.CreateUnbound(startPoint, normal);
                 Draw._Curve(doc, ray);
 
                 var resultSet = horizontalLine?.Intersect(ray, out IntersectionResultArray _);
@@ -120,7 +119,6 @@ namespace GvcRevitPlugins.TerrainCheck
 
             var geometry = ts.get_Geometry(new Options());
 
-            // Seleciona somente faces com inclinação útil (exclui horizontais e verticais)
             return geometry.OfType<Solid>()
                            .Where(s => s.Faces.Size > 0)
                            .SelectMany(s => s.Faces.Cast<Face>())
@@ -149,40 +147,33 @@ namespace GvcRevitPlugins.TerrainCheck
 
             if (geoObject is not PlanarFace selectedFace) return null;
 
-            var horizontalLine = selectedFace
-                .EdgeLoops.Cast<EdgeArray>()
-                .SelectMany(ea => ea.Cast<Edge>())
-                .Select(e => e.AsCurve())
-                .OfType<Line>()
-                .FirstOrDefault(l => l.Direction.Z == 0);
+            var horizontalLine = GetFaceHorizontalLine(selectedFace, false);
 
             if (horizontalLine == null) return null;
 
-            // Projeta a linha horizontal para o plano XY (Z = 0)
-            var transformedLine = horizontalLine.CreateTransformed(transform) as Line;
-            var start = new XYZ(transformedLine.GetEndPoint(0).X, transformedLine.GetEndPoint(0).Y, 0);
-            var end = new XYZ(transformedLine.GetEndPoint(1).X, transformedLine.GetEndPoint(1).Y, 0);
-
-            var points = utils.XYZUtils.DivideEvenly(start, end, subdivisionLevel);
+            var points = utils.XYZUtils.DivideEvenly(horizontalLine.GetEndPoint(0), horizontalLine.GetEndPoint(1), subdivisionLevel);
             if (points == null || points.All(p => p == null)) return null;
 
             return new ProjectedFaceData
             {
                 FaceProjection = points,
                 FaceNormal = transform.OfVector(selectedFace.FaceNormal).Normalize(),
-                Level = doc.GetElement(element.LevelId) as Level,
                 Face = selectedFace
             };
         }
 
-        public virtual double GetPlatformElevation(UIDocument uiDoc)
+        public virtual (double elevation, Level level) GetPlatformElevationWithLevel(UIDocument uiDoc)
         {
             var pickedRef = uiDoc.Selection.PickObject(Autodesk.Revit.UI.Selection.ObjectType.Face, "Selecione uma face de referência da elevação do platô");
-            if (pickedRef == null) return double.NegativeInfinity;
+            if (pickedRef == null) return (double.NegativeInfinity, null);
 
-            var face = uiDoc.Document.GetElement(pickedRef.ElementId).GetGeometryObjectFromReference(pickedRef) as Face;
+            var element = uiDoc.Document.GetElement(pickedRef.ElementId);
+            var face = element.GetGeometryObjectFromReference(pickedRef) as Face;
             var normal = utils.XYZUtils.FaceNormal(face, out UV uv);
-            return normal != null ? face.Evaluate(uv).Z : double.NegativeInfinity;
+            var z = normal != null ? face.Evaluate(uv).Z : double.NegativeInfinity;
+            var level = uiDoc.Document.GetElement(element.LevelId) as Level;
+
+            return (z, level);
         }
 
         public virtual ElementId GetTerrainBoundaryId(UIDocument uiDoc)
@@ -193,26 +184,29 @@ namespace GvcRevitPlugins.TerrainCheck
 
         public virtual bool FilterPlanes(XYZ normal)
         {
-            // Ignora planos totalmente verticais ou horizontais
             return !(Math.Abs(normal.X) == 1 || Math.Abs(normal.Y) == 1 || normal.Z == -1);
         }
 
-        public virtual Line GetFaceHorizontalLine(Face face)
+        public virtual Line GetFaceHorizontalLine(Face face, bool flat = true)
         {
             if (face == null) return null;
 
-            var line = face
-                .EdgeLoops.Cast<EdgeArray>()
-                .SelectMany(ea => ea.Cast<Edge>())
-                .Select(e => e.AsCurve())
-                .OfType<Line>()
-                .FirstOrDefault(l => l.Direction.Z == 0);
+            Mesh mesh = face.Triangulate();
+            List<XYZ> vertices = mesh.Vertices.Cast<XYZ>().ToList();
+            XYZ center = new XYZ(
+                vertices.Average(v => v.X),
+                vertices.Average(v => v.Y),
+                vertices.Average(v => v.Z)
+            );
 
-            if (line == null) return null;
+            double maxWidth = vertices.Max(v => v.X);
+            double left = center.X - maxWidth / 2;
+            double right = center.X + maxWidth / 2;
 
-            var start = line.GetEndPoint(0);
-            var end = line.GetEndPoint(1);
-            return Line.CreateBound(new XYZ(start.X, start.Y, 0), new XYZ(end.X, end.Y, 0));
+            XYZ start = new XYZ(left, center.Y, flat? 0 : center.Z);
+            XYZ end = new XYZ(right, center.Y, flat ? 0 : center.Z);
+
+            return Line.CreateBound(start, end);
         }
     }
 
