@@ -1,6 +1,8 @@
 ﻿using Autodesk.Revit.Attributes;
 using Autodesk.Revit.DB;
 using Autodesk.Revit.UI;
+using GvcRevitPlugins.Shared.App;
+using GvcRevitPlugins.TerrainCheck.UI;
 using Revit.Async;
 using System;
 using System.Drawing;
@@ -8,9 +10,8 @@ using System.Drawing.Imaging;
 using System.IO;
 using System.Linq;
 using System.Reflection;
-using System.Windows.Media.Imaging;
 using System.Windows;
-using GvcRevitPlugins.TerrainCheck.UI;
+using System.Windows.Media.Imaging;
 
 namespace GvcRevitPlugins.TerrainCheck
 {
@@ -27,7 +28,7 @@ namespace GvcRevitPlugins.TerrainCheck
                 var logo32 = (Bitmap)Properties.Resource.ResourceManager.GetObject("Logo32");
 
                 RibbonPanel panel = CreateRibbonPanel(application, "GVC");
-                AddButton(panel, path, "EmccampTerrainCheckExecute", "Checagem de Terrenos", typeof(ShowMainWindowCommand).FullName, logo16, logo32);
+                AddButton(panel, path, "EmccampTerrainCheckExecute V2", "Checagem de Terrenos", typeof(ShowTerrainPluginCommand).FullName, logo16, logo32);
             }
             catch (Exception ex)
             {
@@ -77,9 +78,10 @@ namespace GvcRevitPlugins.TerrainCheck
             try
             {
                 RevitTask.Initialize(commandData.Application);
+                RevitTask.RegisterGlobal(new GvcExternalEventHandler());
                 RevitTask.RunAsync(() =>
                 {
-                    var mainWindow = new SimpleInterface(); // Assuma que MainWindow é WPF padrão
+                    var mainWindow = new TerrainPluginInterface(commandData);
                     mainWindow.Show();
                 });
                 return Result.Succeeded;

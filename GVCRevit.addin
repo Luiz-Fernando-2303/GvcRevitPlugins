@@ -9,6 +9,15 @@
 		<VendorId>Eng Nelson Henrique</VendorId>
 		<VendorDescription>Nelson Henrique | Instagram: @nelsonhpc.eng | Telegram: @nelsonhpc</VendorDescription>
 	</AddIn>
+	<AddIn Type="Application">
+		<Name>Emccamp Checagem de Terrenos V2</Name>
+		<Description>No description yet</Description>
+		<Assembly>Lupa Revit/GvcRevitPlugins.dll</Assembly>
+		<FullClassName>GvcRevitPlugins.TerrainCheck.RunTerrainPlugin</FullClassName>
+		<ClientId>3023a4be-5dba-4dd0-b912-9e55f081e1f9</ClientId>
+		<VendorId>Eng Nelson Henrique</VendorId>
+		<VendorDescription>Nelson Henrique | Instagram: @nelsonhpc.eng | Telegram: @nelsonhpc</VendorDescription>
+	</AddIn>
 	<!--
 	<AddIn Type="Command">
 		<Name>GVC - SimpleDebugs</Name>

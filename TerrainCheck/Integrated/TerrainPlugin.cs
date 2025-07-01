@@ -17,10 +17,11 @@ namespace GvcRevitPlugins.TerrainCheck
         public double HeightDifference { get; set; }
         public double DistanceToBoundary { get; set; }
         public double OffsetUsed { get; set; }
+        public ElementId WallId { get; set; }
         public Line WallLine => StartPoint != null && EndPoint != null ? Line.CreateBound(StartPoint, EndPoint) : null;
     }
 
-    public class Plugin
+    public class TerrainPlugin
     {
         public UIDocument UiDoc { get; set; }
         public Document Doc => UiDoc?.Document;
@@ -29,12 +30,15 @@ namespace GvcRevitPlugins.TerrainCheck
         public Level PlatformLevel { get; private set; }
         public ElementId TerrainBoundaryId { get; private set; }
         public int SubdivisionLevel { get; set; } = 10;
+        public double wallHeight_ { get; set; } = 2.0; // Default wall height in meters
+        public double minimumDistance_ { get; set; } = 2.0; // Default minimum distance in meters
 
         public ProjectedFaceData ProjectedFace { get; private set; }
         public Curve[] TerrainBoundaryLines { get; private set; }
         public Face[] TopoFaces { get; private set; }
         public Toposolid Toposolid { get; private set; }
         public XYZ[] BoundaryPoints { get; private set; }
+        public XYZ[] startPoints { get; private set; }
         public List<SlopeResult> Results { get; private set; } = new();
 
         public class ProjectedFaceData
@@ -74,6 +78,7 @@ namespace GvcRevitPlugins.TerrainCheck
         public bool SetProjectedFace()
         {
             ProjectedFace = GetFaceReferences();
+            startPoints = ProjectedFace?.FaceProjection;
             return ProjectedFace != null && ProjectedFace.FaceNormal != null && ProjectedFace.FaceProjection.All(p => p != null);
         }
 
@@ -88,6 +93,7 @@ namespace GvcRevitPlugins.TerrainCheck
             using var transaction = new Transaction(Doc, "EMCCAMP - Terrain Check");
             transaction.Start();
 
+            SetBoundaryPoints();
             RunSlopeAnalysis();
 
             foreach (var result in Results)
@@ -95,62 +101,77 @@ namespace GvcRevitPlugins.TerrainCheck
                 if (result?.WallLine != null)
                 {
                     WallType wallType = Shared.Utils.RevitUtils.GetOrCreateWallType(UiDoc, "Resultado Talude Corte", BuiltInCategory.OST_Walls, new Color(255, 0, 0));
-                    Wall.Create(Doc, result.WallLine, wallType.Id, PlatformLevel.Id, result.OffsetUsed, 0, false, false);
+                    var wall = Wall.Create(
+                        Doc,
+                        result.WallLine,
+                        wallType.Id,
+                        PlatformLevel.Id,
+                        UnitUtils.ConvertToInternalUnits(wallHeight_, UnitTypeId.Meters), 
+                        0,
+                        false,
+                        false
+                    );
+                    result.WallId = wall.Id;
                 }
             }
 
             transaction.Commit();
         }
 
-        private void RunSlopeAnalysis()
+        public void RunSlopeAnalysis()
         {
             Results.Clear();
-            double baseElevation = PlatformElevation;
-            double wallHeight = UnitUtils.ConvertToInternalUnits(TerrainCheckApp._thisApp.Store.TerrainCheckStrucWallHeight, UnitTypeId.Meters);
 
-            double minDist = TerrainCheckApp._thisApp.Store.MinimumDistance;
-            minDist = minDist > 2 ? minDist : 2;
-            minDist = UnitUtils.ConvertToInternalUnits(minDist, UnitTypeId.Meters);
-            if (wallHeight > minDist)
-                minDist = wallHeight - UnitUtils.ConvertToInternalUnits(1, UnitTypeId.Meters);
+            double baseElevation = UnitUtils.ConvertToInternalUnits(PlatformElevation, UnitTypeId.Meters);
+            double wallHeight = UnitUtils.ConvertToInternalUnits(wallHeight_, UnitTypeId.Meters);
+            double minDistance = minimumDistance_;
+            minDistance = minDistance > 2 ? minDistance : 2;
+            minDistance = UnitUtils.ConvertToInternalUnits(minDistance, UnitTypeId.Meters);
 
-            int count = Math.Min(ProjectedFace.FaceProjection.Length, BoundaryPoints.Length);
-            double maxHeightDiff = 0.0;
-            double worstDistance = 0.0;
+            if (wallHeight > minDistance)
+            {
+                minDistance = wallHeight - UnitUtils.ConvertToInternalUnits(1.0, UnitTypeId.Meters);
+            }
+
+            List<Curve> wallCurves = new();
+            List<XYZ> validStarts = new();
+            List<XYZ> validBoundaries = new();
+            List<XYZ> endPoints = new();
+
+            int count = Math.Min(startPoints?.Length ?? 0, BoundaryPoints?.Length ?? 0);
 
             for (int i = 0; i < count; i++)
             {
-                var start = ProjectedFace.FaceProjection[i];
+                var start = startPoints[i];
                 var boundary = BoundaryPoints[i];
                 if (start == null || boundary == null) continue;
 
-                double heightDiff = boundary.Z - baseElevation;
-                double offset = Math.Max(heightDiff / 2, minDist);
+                validStarts.Add(start);
+                validBoundaries.Add(boundary);
+
+                // Calcula o deslocamento com base na diferença de altura
+                double offset = (boundary.Z - baseElevation) / 2;
+                offset = offset < minDistance ? minDistance : offset;
+
                 var end = Shared.Utils.XYZUtils.GetEndPoint(start, ProjectedFace.FaceNormal, offset);
+                endPoints.Add(end);
 
-                var p1 = new Vector2((float)start.X, (float)start.Y);
-                var p2 = new Vector2((float)boundary.X, (float)boundary.Y);
-                double distance = Vector2.Distance(p1, p2);
-
-                if (heightDiff > maxHeightDiff)
+                // Cria linha entre o ponto atual e o anterior válido
+                if (end != null && endPoints.Count > 1 && endPoints[^2] != null)
                 {
-                    maxHeightDiff = heightDiff;
-                    worstDistance = distance;
+                    wallCurves.Add(Line.CreateBound(endPoints[^2], end));
+
+                    Results.Add(new SlopeResult
+                    {
+                        StartPoint = endPoints[^2],
+                        BoundaryPoint = boundary,
+                        EndPoint = end,
+                        HeightDifference = Math.Abs(boundary.Z - baseElevation),
+                        DistanceToBoundary = start.DistanceTo(boundary),
+                        OffsetUsed = offset
+                    });
                 }
-
-                Results.Add(new SlopeResult
-                {
-                    StartPoint = start,
-                    BoundaryPoint = boundary,
-                    EndPoint = end,
-                    HeightDifference = heightDiff,
-                    DistanceToBoundary = distance,
-                    OffsetUsed = offset
-                });
             }
-
-            TerrainCheckApp._thisApp.Store.TerrainCheckCalcHeight = Math.Round(UnitUtils.ConvertFromInternalUnits(maxHeightDiff, UnitTypeId.Meters), 1);
-            TerrainCheckApp._thisApp.Store.TerrainCheckCalcDistance = Math.Round(UnitUtils.ConvertFromInternalUnits(worstDistance, UnitTypeId.Meters), 1);
         }
 
         public virtual XYZ[] FindIntersectionPoints(Face face, XYZ normal, IEnumerable<Curve> boundaryPath, Face[] terrainFaces)
@@ -160,12 +181,10 @@ namespace GvcRevitPlugins.TerrainCheck
             List<XYZ> result = new();
             var startPoints = utils.XYZUtils.DivideCurvesEvenly(boundaryPath, SubdivisionLevel);
             var horizontalLine = GetFaceHorizontalLine(face);
-            Draw._Curve(Doc, horizontalLine);
 
             foreach (var startPoint in startPoints)
             {
                 var ray = Line.CreateUnbound(startPoint, normal);
-                Draw._Curve(Doc, ray);
 
                 var resultSet = horizontalLine?.Intersect(ray, out IntersectionResultArray _);
                 if (resultSet != SetComparisonResult.Overlap) continue;

@@ -10,6 +10,8 @@ using System.Security.Cryptography.X509Certificates;
 using utils = GvcRevitPlugins.Shared.Utils;
 
 // Formas de divisa: Parede normal, Parade cortina, Linhas do modelo, guarda corpo, **linha de divisa, superfice topografica e vinculo AutoCad 2D
+// Clicar na linha de divisa gerar os guarda corpos
+
 
 // passo 1: configurar parametros (talude ou arrimo, norma tecnica (CEF, execucaco, estudal, municipal, federal, dnit e der) e [tipo de espaco])
 // passo 2: clicar nos objetos de referencia (linha de divisa(mostra para o usuario e obrigatorio), divisa de analise(guarda corpo), face(do edificio), piso(plato acabado))
@@ -41,6 +43,17 @@ namespace GvcRevitPlugins.TerrainCheck
         {
             UIDocument uiDoc = uiApp.ActiveUIDocument;
             Document doc = uiDoc.Document;
+
+            //var bound = uiDoc.Selection.GetElementIds().FirstOrDefault();
+            //var element = bound != ElementId.InvalidElementId ? doc.GetElement(bound) : null;
+            //var geometry = element.get_Geometry(new Options());
+            //var lines = geometry.OfType<Curve>().ToArray();
+
+            //var points = utils.XYZUtils.DivideCurvesEvenly(lines, 1000);
+            //Draw._XYZ(doc, points);
+
+
+            //return;
 
             (double platformElevationRaw, Level platformLevel) = GetPlatformElevationWithLevel(uiDoc);
             double platformElevation = UnitUtils.ConvertToInternalUnits(platformElevationRaw, UnitTypeId.Meters);
