@@ -15,28 +15,22 @@ namespace GvcRevitPlugins.TerrainCheck.UI
     public class SlopeResultDisplay
     {
         public int ID { get; set; }
-        public string Start { get; set; }
-        public string Boundary { get; set; }
-        public string End { get; set; }
-        public double Altura_m { get; set; }
-        public double DistanciaXY_m { get; set; }
-        public double Offset_m { get; set; }
+        public double X { get; set; }
+        public double Y { get; set; }
+        public double Height { get; set; }
+        public double DistanceFaceToBoundary { get; set; }
+        public double DistanceSlopeToBoundary { get; set; }
+        public double Result { get; set; } // wall extension
 
         public SlopeResultDisplay(SlopeResult result)
         {
-            ID = (int)result.WallId.Value;
-            Start = FormatXYZ(result.StartPoint);
-            Boundary = FormatXYZ(result.BoundaryPoint);
-            End = FormatXYZ(result.EndPoint);
-            Altura_m = Math.Round(UnitUtils.ConvertFromInternalUnits(result.HeightDifference, UnitTypeId.Meters), 2);
-            DistanciaXY_m = Math.Round(UnitUtils.ConvertFromInternalUnits(result.DistanceToBoundary, UnitTypeId.Meters), 2);
-            Offset_m = Math.Round(UnitUtils.ConvertFromInternalUnits(result.OffsetUsed, UnitTypeId.Meters), 2);
-        }
-
-        private static string FormatXYZ(XYZ pt)
-        {
-            if (pt == null) return "-";
-            return $"({pt.X:F2}, {pt.Y:F2}, {pt.Z:F2})";
+            ID = (int)result.Wall.Id.Value;
+            X = Math.Round(UnitUtils.ConvertFromInternalUnits(result.BoundaryPoint.X, UnitTypeId.Meters), 2);
+            Y = Math.Round(UnitUtils.ConvertFromInternalUnits(result.BoundaryPoint.Y, UnitTypeId.Meters), 2);
+            Height = Math.Round(UnitUtils.ConvertFromInternalUnits(result.BoundaryPoint.Z, UnitTypeId.Meters), 2);
+            DistanceFaceToBoundary = Math.Round(UnitUtils.ConvertFromInternalUnits(result.DistanceFaceToBoundary, UnitTypeId.Meters), 2);
+            DistanceSlopeToBoundary = Math.Round(UnitUtils.ConvertFromInternalUnits(result.DistanceSlopeToBoundary, UnitTypeId.Meters), 2);
+            Result = Math.Round(UnitUtils.ConvertFromInternalUnits(result.OffsetUsed / 2, UnitTypeId.Meters), 2);
         }
     }
     public partial class TerrainPluginInterface : Window
@@ -100,11 +94,48 @@ namespace GvcRevitPlugins.TerrainCheck.UI
             }
         }
 
+        public void Export_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                var DisplayResults = Plugin.Results.ConvertAll(r => new SlopeResultDisplay(r));
+                string header = "ID;X;Y;Height;DistanceFaceToBoundary;DistanceSlopeToBoundary;Result";
+                List<string> rows = new List<string> { header };
+
+                foreach (var displayResult in DisplayResults)
+                {
+                    string row = $"{displayResult.ID};{displayResult.X};{displayResult.Y};{displayResult.Height};" +
+                        $"{displayResult.DistanceFaceToBoundary};{displayResult.DistanceSlopeToBoundary};{displayResult.Result}";
+
+                    rows.Add(row);
+                }
+
+                // Save file dialog
+                var saveFileDialog = new Microsoft.Win32.SaveFileDialog
+                {
+                    Filter = "CSV files (*.csv)|*.csv|All files (*.*)|*.*",
+                    FileName = "SlopeResults.csv"
+                };
+                if (saveFileDialog.ShowDialog() == true)
+                {
+                    System.IO.File.WriteAllLines(saveFileDialog.FileName, rows);
+                    StatusText.Text = "Exportação concluída com sucesso.";
+                }
+                else
+                {
+                    StatusText.Text = "Exportação cancelada.";
+                }
+            }
+            catch (Exception ex)
+            {
+                StatusText.Text = $"Erro ao exportar: {ex.Message}";
+            }
+        }
+
         private void ExecuteCheck_Click(object sender, RoutedEventArgs e)
         {
             try
             {
-                // Converte valores da interface
                 if (!double.TryParse(WallHeightBox.Text, NumberStyles.Float, CultureInfo.InvariantCulture, out double wallHeight) ||
                     !double.TryParse(MinDistanceBox.Text, NumberStyles.Float, CultureInfo.InvariantCulture, out double minDistance) ||
                     !int.TryParse(SubdivisionLevelBox.Text, out int subdivisionLevel))
@@ -117,7 +148,6 @@ namespace GvcRevitPlugins.TerrainCheck.UI
                 Plugin.minimumDistance_ = minDistance;
                 Plugin.SubdivisionLevel = subdivisionLevel;
 
-                // Executa verificação
                 if (!Plugin.SetBoundaryPoints())
                 {
                     StatusText.Text = "Erro ao identificar pontos da borda do terreno.";
@@ -128,7 +158,6 @@ namespace GvcRevitPlugins.TerrainCheck.UI
                 {
                     Plugin.Execute();
 
-                    // Interface gráfica deve ser atualizada no thread principal
                     Dispatcher.Invoke(() =>
                     {
                         var displayResults = Plugin.Results.ConvertAll(r => new SlopeResultDisplay(r));

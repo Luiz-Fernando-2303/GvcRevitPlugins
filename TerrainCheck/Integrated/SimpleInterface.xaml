@@ -51,8 +51,8 @@
                 <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
-                        <RowDefinition/>
-                        <RowDefinition Height="0*"/>
+                        <RowDefinition Height="41*"/>
+                        <RowDefinition Height="8*"/>
                     </Grid.RowDefinitions>
 
                     <!-- Tabela -->
@@ -60,14 +60,16 @@
                               HeadersVisibility="Column" IsReadOnly="True" Margin="10,10,10,10">
                         <DataGrid.Columns>
                             <DataGridTextColumn Header="Id" Binding="{Binding ID}" Width="*" />
-                            <DataGridTextColumn Header="Ponto Inicial" Binding="{Binding Start}" Width="*" />
-                            <DataGridTextColumn Header="Ponto do Terreno" Binding="{Binding Boundary}" Width="*" />
-                            <DataGridTextColumn Header="Ponto Final" Binding="{Binding End}" Width="*" />
-                            <DataGridTextColumn Header="Altura (m)" Binding="{Binding Altura_m}" Width="90" />
-                            <DataGridTextColumn Header="Distância (m)" Binding="{Binding DistanciaXY_m}" Width="90" />
-                            <DataGridTextColumn Header="Offset (m)" Binding="{Binding Offset_m}" Width="90" />
+                            <DataGridTextColumn Header="X" Binding="{Binding X}" Width="*" />
+                            <DataGridTextColumn Header="Y" Binding="{Binding Y}" Width="*" />
+                            <DataGridTextColumn Header="Altura¹" Binding="{Binding Height}" Width="*" />
+                            <DataGridTextColumn Header="Distância Face-Divisa" Binding="{Binding DistanceFaceToBoundary}" Width="*" />
+                            <DataGridTextColumn Header="Distância Arrimo-Divisa" Binding="{Binding DistanceSlopeToBoundary}" Width="*" />
+                            <DataGridTextColumn Header="Resultado²" Binding="{Binding Result}" Width="*" />
                         </DataGrid.Columns>
                     </DataGrid>
+
+                    <Button Content="Exportar CSV" Click="Export_Click" Background="#e0ecf8" BorderBrush="#c0d3ea" BorderThickness="1" Margin="10,25,701,25" Grid.Row="2"/>
                 </Grid>
             </TabItem>
         </TabControl>

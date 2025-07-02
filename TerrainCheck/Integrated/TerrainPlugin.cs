@@ -4,7 +4,6 @@ using Autodesk.Revit.UI;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Numerics;
 using utils = GvcRevitPlugins.Shared.Utils;
 
 namespace GvcRevitPlugins.TerrainCheck
@@ -14,10 +13,15 @@ namespace GvcRevitPlugins.TerrainCheck
         public XYZ StartPoint { get; set; }
         public XYZ BoundaryPoint { get; set; }
         public XYZ EndPoint { get; set; }
+        public XYZ Middle => StartPoint != null && EndPoint != null ? new XYZ((StartPoint.X + EndPoint.X) / 2, (StartPoint.Y + EndPoint.Y) / 2, (StartPoint.Z + EndPoint.Z) / 2) : null;
+        public Face ReferenceFace { get; set; }
         public double HeightDifference { get; set; }
         public double DistanceToBoundary { get; set; }
+        public double DistanceFaceToBoundary => StartPoint != null && BoundaryPoint != null ? utils.XYZUtils.FaceNormal(ReferenceFace, out UV _).DistanceTo(BoundaryPoint) : 0.0;
+        public double DistanceSlopeToBoundary => StartPoint != null && BoundaryPoint != null ? Middle.DistanceTo(BoundaryPoint) : 0.0;
+        public double WallExtension => EndPoint != null && StartPoint != null ? EndPoint.DistanceTo(StartPoint) : 0.0;
         public double OffsetUsed { get; set; }
-        public ElementId WallId { get; set; }
+        public Wall Wall { get; set; }
         public Line WallLine => StartPoint != null && EndPoint != null ? Line.CreateBound(StartPoint, EndPoint) : null;
     }
 
@@ -111,7 +115,8 @@ namespace GvcRevitPlugins.TerrainCheck
                         false,
                         false
                     );
-                    result.WallId = wall.Id;
+                    result.Wall = wall;
+                    result.ReferenceFace = ProjectedFace.Face;
                 }
             }
 
