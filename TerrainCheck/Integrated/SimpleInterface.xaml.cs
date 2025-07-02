@@ -1,6 +1,7 @@
 ﻿using Autodesk.Revit.DB;
 using Autodesk.Revit.UI;
 using GvcRevitPlugins.TerrainCheck;
+using GvcRevitPlugins.TerrainCheck.Integrated;
 using Revit.Async;
 using System;
 using System.Collections.Generic;
@@ -46,12 +47,16 @@ namespace GvcRevitPlugins.TerrainCheck.UI
 
         private void SelectPlatform_Click(object sender, RoutedEventArgs e)
         {
+            var BouaryLineToRailing = new BoundaryLineToRailing(Plugin.UiDoc);
+
             try
             {
                 if (Plugin.SetPlatformElevation())
                     StatusText.Text = "Platô selecionado com sucesso.";
+
                 else
                     StatusText.Text = "Erro ao selecionar o platô.";
+
             }
             catch (Exception ex)
             {
@@ -61,9 +66,34 @@ namespace GvcRevitPlugins.TerrainCheck.UI
 
         private void SelectBoundary_Click(object sender, RoutedEventArgs e)
         {
+            var BouaryLineToRailing = new BoundaryLineToRailing(Plugin.UiDoc);
+
             try
             {
-                if (Plugin.SetTerrainBoundary())
+                if (BouaryLineToRailing.ViewIs2D)
+                {
+                    RevitTask.RunAsync(() =>
+                    {
+                        BouaryLineToRailing.Execute();
+                        Dispatcher.Invoke(() =>
+                        {
+                            if (BouaryLineToRailing.BoundaryLine != null && BouaryLineToRailing.ProjectionTerrain != null)
+                            {
+                                StatusText.Text = "Divisa e linha selecionadas com sucesso.";
+                            }
+                            else
+                            {
+                                StatusText.Text = "Erro ao selecionar divisa ou linha.";
+                            }
+                        });
+                    });
+
+                    Plugin.PreMadePath = BouaryLineToRailing.FlatCurves;
+                    Plugin.PreMadeTopoSolidId = BouaryLineToRailing.Toposolid?.Id;
+                    Plugin.PreMadeTopoFaces = BouaryLineToRailing.ToposolidFaces;
+                }
+
+                else if (Plugin.SetTerrainBoundary())
                     StatusText.Text = "Divisa selecionada com sucesso.";
                 else
                     StatusText.Text = "Erro ao selecionar a divisa.";

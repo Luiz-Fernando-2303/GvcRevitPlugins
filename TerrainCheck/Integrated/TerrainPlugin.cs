@@ -45,6 +45,11 @@ namespace GvcRevitPlugins.TerrainCheck
         public XYZ[] startPoints { get; private set; }
         public List<SlopeResult> Results { get; private set; } = new();
 
+        // Pre made items
+        public Curve[] PreMadePath { get; set; } = null;
+        public ElementId PreMadeTopoSolidId { get; set; } = null;
+        public Face[] PreMadeTopoFaces { get; set; } = null;
+
         public class ProjectedFaceData
         {
             public XYZ[] FaceProjection { get; set; }
