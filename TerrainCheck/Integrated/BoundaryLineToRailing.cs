@@ -122,6 +122,8 @@ namespace GvcRevitPlugins.TerrainCheck.Integrated
             TaskDialog.Show("Sucesso", "Guarda-corpo criado com sucesso!");
         }
 
+        
+
         private void CreateExtrudedWallFromCurves(Curve[] curves)
         {
             using (var tx = new Transaction(Document, "Criar forma 3D inclinada"))

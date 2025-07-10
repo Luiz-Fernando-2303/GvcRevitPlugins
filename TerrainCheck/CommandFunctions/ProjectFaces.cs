@@ -67,6 +67,60 @@ namespace GvcRevitPlugins.TerrainCheck
             CreateExtrudedWallFromCurves(connected);
 
             utils.Draw._XYZ(Document, ProjectedPoints);
+            utils.Draw._XYZ(Document, SlopePoints());
+        }
+
+        private XYZ[] SlopePoints()
+        {
+            List<XYZ> resultPoints = new();
+
+            foreach (var result in results)
+            {
+                Face face = result.face;
+                XYZ projectedPoint = result.point;
+
+                // Normal da face
+                BoundingBoxUV bbox = face.GetBoundingBox();
+                UV midUV = new UV((bbox.Min.U + bbox.Max.U) / 2, (bbox.Min.V + bbox.Max.V) / 2);
+                XYZ faceNormal = face.ComputeNormal(midUV).Normalize();
+
+                // Linha horizontal da base da face
+                Line horizontalBaseLine = utils.XYZUtils.GetLongestHorizontalEdge(face);
+                if (horizontalBaseLine == null) continue;
+
+                // Ponto projetado na altura 0
+                XYZ baseProjected = new XYZ(projectedPoint.X, projectedPoint.Y, 0);
+
+                // Criar raio na direção da normal a partir do ponto base (em Z = 0)
+                Line ray = Line.CreateUnbound(baseProjected, faceNormal);
+
+                // Interseção do raio com a linha da base
+                SetComparisonResult intersectionResult = horizontalBaseLine.Intersect(ray, out IntersectionResultArray intersectionArray);
+                if (intersectionResult != SetComparisonResult.Overlap || intersectionArray == null || intersectionArray.IsEmpty)
+                    continue;
+
+                XYZ intersection = intersectionArray.get_Item(0).XYZPoint;
+
+                // Cálculo da distância de deslocamento
+                XYZ faceOrigin = face.Evaluate(midUV);
+                double heightDifference = Math.Abs(faceOrigin.Z - projectedPoint.Z);
+                double x = heightDifference / 2;
+
+                // Direção perpendicular à inclinação da face (no plano XY)
+                XYZ horizontalDirection = new XYZ(faceNormal.X, faceNormal.Y, 0).Normalize();
+                XYZ horizontalNormal = new XYZ(-horizontalDirection.Y, horizontalDirection.X, 0).Normalize();
+
+                // Ponto deslocado horizontalmente
+                XYZ moved = intersection + horizontalNormal * x;
+
+                // Recolocar na altura da linha da face
+                double zBase = horizontalBaseLine.GetEndPoint(0).Z; // ou GetEndPoint(1).Z, devem ser iguais
+                XYZ finalPoint = new XYZ(moved.X, moved.Y, zBase);
+
+                resultPoints.Add(finalPoint);
+            }
+
+            return resultPoints.ToArray();
         }
 
         private void CreateExtrudedWallFromCurves(Curve[] curves)
