@@ -69,10 +69,14 @@ namespace GvcRevitPlugins.TerrainCheck.Integrated
                 return;
             }
 
-            ExecuteFinalLogic();
+            CreateWalls(); 
         }
 
-        private void ExecuteFinalLogic(int subdivisions = 100)
+
+        // Tamnho das divisoes
+        // Altura variavel
+        // Espessura variavel
+        private void CreateWalls(int subdivisions = 100)
         {
             var geometry = BoundaryLine.get_Geometry(new Options());
             var lines = geometry.OfType<Curve>().ToArray();
@@ -113,9 +117,6 @@ namespace GvcRevitPlugins.TerrainCheck.Integrated
                 return;
             }
 
-            foreach (var curve in curves)
-                Draw._Curve(Document, curve);
-
             CreateExtrudedWallFromCurves(curves);
 
             TaskDialog.Show("Sucesso", "Guarda-corpo criado com sucesso!");
@@ -132,7 +133,7 @@ namespace GvcRevitPlugins.TerrainCheck.Integrated
                     var baseStart = curve.GetEndPoint(0);
                     var baseEnd = curve.GetEndPoint(1);
 
-                    double altura = UnitUtils.ConvertToInternalUnits(3, UnitTypeId.Meters);
+                    double altura = UnitUtils.ConvertToInternalUnits(3, UnitTypeId.Meters); //TODO: seletor da altura
 
                     var up = XYZ.BasisZ.Multiply(altura);
 

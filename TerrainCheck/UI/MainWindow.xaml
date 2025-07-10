@@ -12,7 +12,9 @@
         Height="auto"
         Width="auto"
         MinWidth="800"
-        MinHeight="550"
+        MaxWidth="800"
+        MinHeight="630"
+        MaxHeight="630"
         Background="#FBFBFB"
         d:DataContext="{x:Static local:MainWindowDesignModel.Instance}"
         Topmost="True">
@@ -97,14 +99,12 @@
             CornerRadius="6"
             BorderBrush="{StaticResource BorderGray}"
             BorderThickness="1">
-        <Grid>
+        <Grid Margin="0,0,0,-1">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="320" />
-                <ColumnDefinition Width="*"
-                                  MinWidth="320" />
+                <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
 
-            <DockPanel Margin="16">
+            <DockPanel Margin="16,16,16,27" >
                 <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*" />
@@ -131,7 +131,7 @@
                                    VerticalAlignment="Center"
                                    Margin="0 5"
                                    FontFamily="Segoe UI Semibold"
-                                   Foreground="{StaticResource PrimaryColor}">Taludes e Arrimos</TextBlock>
+                                   Foreground="{StaticResource PrimaryColor}">Arrimos</TextBlock>
                     </StackPanel>
 
                     <materialDesign:PackIcon Kind="Close"
@@ -140,7 +140,7 @@
                                              Height="32"
                                              Grid.Column="1"
                                              Grid.Row="0" />
-                    <TextBlock Text="Verifica afastamentos de Arrimos e Taludes"
+                    <TextBlock Text="Verifica afastamentos de Arrimos"
                                Style="{StaticResource SectionSubtitle}"
                                Margin="0 8 0 0"
                                Grid.Column="0"
@@ -208,11 +208,11 @@
                         </Button>
                         <Button Style="{StaticResource MaterialDesignRaisedAccentButton}"
                                 Grid.Column="1"
-                                Margin="8 0 0 0"
+                                Margin="8,0,0,0"
                                 Visibility="Visible"
-                                Command="{Binding GetTerrainInfoCommand}">
+                                Command="{Binding GetTerrainInfoCommand}" Height="32" VerticalAlignment="Top">
                             <StackPanel Orientation="Horizontal">
-                                <TextBlock Margin="4 0">Face</TextBlock>
+                                <TextBlock Margin="4 0">Objeto</TextBlock>
                                 <materialDesign:PackIcon Kind="CheckboxMarkedCircleOutline"
                                                          Margin="4 0"
                                                          VerticalAlignment="Center" />
@@ -240,43 +240,6 @@
                             <RowDefinition />
                             <RowDefinition />
                         </Grid.RowDefinitions>
-
-                        <TextBlock Grid.Row="0"
-                                   Margin="0 4 0 8"
-                                   Grid.ColumnSpan="2"
-                                   Style="{StaticResource SectionSubtitle}">Maior desnível encontrado:
-                        </TextBlock>
-                        <DockPanel Margin="0 0 0 8"
-                                   Grid.Row="1">
-                            <TextBlock DockPanel.Dock="Left">X: Distância</TextBlock>
-                            <TextBox Text="{Binding Store.TerrainCheckCalcDistance, UpdateSourceTrigger=PropertyChanged, Mode=OneWay}"
-                                     VerticalContentAlignment="Center"
-                                     DockPanel.Dock="Right"
-                                     HorizontalAlignment="Right"
-                                     materialDesign:TextFieldAssist.SuffixText="m"
-                                     TextAlignment="Right"
-                                     Width="50"
-                                     IsReadOnly="True"
-                                     IsEnabled="False" />
-                        </DockPanel>
-                        <DockPanel Margin="0 0 0 8"
-                                   Grid.Row="2">
-                            <TextBlock DockPanel.Dock="Left">Y: Desnível</TextBlock>
-                            <TextBox Text="{Binding Store.TerrainCheckCalcHeight, UpdateSourceTrigger=PropertyChanged, Mode=OneWay}"
-                                     VerticalContentAlignment="Center"
-                                     DockPanel.Dock="Right"
-                                     HorizontalAlignment="Right"
-                                     materialDesign:TextFieldAssist.SuffixText="m"
-                                     TextAlignment="Right"
-                                     Width="50"
-                                     IsReadOnly="True"
-                                     IsEnabled="False" />
-                        </DockPanel>
-                        <Image  Grid.Column="1"
-                                Grid.Row="1"
-                                Grid.RowSpan="2"
-                                Margin="8 0 0 0"
-                                Source="{StaticResource TerrainDrawDrawingImage}" />
                     </Grid>
 
                     <materialDesign:Card Margin="0 8 0 5"
@@ -462,14 +425,11 @@
                     <Button Foreground="White"
                             Grid.Row="4"
                             Command="{Binding DrawTerrainCheckCommand}">
-                            Desenhar Resultados
+                        Desenhar Resultados
                     </Button>
                 </Grid>
 
             </DockPanel>
-            <wv2:WebView2 x:Name="webView"
-                          CreationProperties="{StaticResource EvergreenWebView2CreationProperties}"
-                          Grid.Column="1" />
         </Grid>
     </Border>
 </Window>

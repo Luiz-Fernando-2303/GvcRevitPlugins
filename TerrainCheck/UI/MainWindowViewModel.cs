@@ -15,7 +15,6 @@ namespace GvcRevitPlugins.TerrainCheck.UI
         public event PropertyChangedEventHandler PropertyChanged;
         public Action CloseAction { get; set; }
         public Store Store { get; set; }
-        private WebViewService _webViewService;
 
         private int mainWindowHeight = 600;
         public ICommand SetPlatformElevation { get; set; }
@@ -54,10 +53,9 @@ namespace GvcRevitPlugins.TerrainCheck.UI
         {
 
         }
-        public MainWindowViewModel(UIApplication uirevitapp, WebView2 webView, TerrainCheckApp app)
+        public MainWindowViewModel(UIApplication uirevitapp, TerrainCheckApp app)
         {
             Instance = this;
-            _webViewService = new WebViewService(webView, this);
             Store = app.Store;
             SetCommands();
         }

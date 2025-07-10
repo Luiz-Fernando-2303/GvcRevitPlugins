@@ -6,10 +6,9 @@ namespace GvcRevitPlugins.TerrainCheck
 {
     public class Store : OnPropertyChangedBase
     {
-        public int BuildingFaceId { get; set; }
-        public int TerrainBoundaryId { get; set; }
+        public ElementId IntersectionElementId { get; set; }
+        public List<ElementId> TerrainBoundaryIds  { get; set; }
         public int SubdivisionLevel { get; set; } = 10;
-        public List<XYZ> RailingPoins { get; set; }
 
         private double _platformElevation;
         public double PlatformElevation

@@ -4,6 +4,8 @@ using Autodesk.Revit.UI.Selection;
 using GvcRevitPlugins.Shared.App;
 using GvcRevitPlugins.Shared.Commands;
 using Revit.Async;
+using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 
 namespace GvcRevitPlugins.TerrainCheck.Commands
@@ -22,10 +24,10 @@ namespace GvcRevitPlugins.TerrainCheck.Commands
             var doc = uiDoc.Document;
             var selection = uiDoc.Selection;
 
-            Reference pickedRef = uiDoc.Selection.PickObject(ObjectType.Element, "Selecione o muro de divisa");
-            if (pickedRef == null) return;
-            Element element = uiDoc.Document.GetElement(pickedRef.ElementId);
-            TerrainCheckApp._thisApp.Store.TerrainBoundaryId = (int)element.Id.Value;
+            List<Reference> pickedRef = uiDoc.Selection.PickObjects(ObjectType.Element, "Selecione os objetos de divisa").ToList();
+            if (pickedRef.Count == 0) return;
+            List<Element> elements = pickedRef.Select(r => uiDoc.Document.GetElement(r.ElementId)).ToList();
+            TerrainCheckApp._thisApp.Store.TerrainBoundaryIds = elements.Select(e => e.Id).ToList();
         }
     }
 }

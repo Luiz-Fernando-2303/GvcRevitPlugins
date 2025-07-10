@@ -3,6 +3,7 @@ using Autodesk.Revit.UI;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using utils = GvcRevitPlugins.Shared.Utils;
 
 namespace GvcRevitPlugins.TerrainCheck.Rules
 {
@@ -77,7 +78,7 @@ namespace GvcRevitPlugins.TerrainCheck.Rules
                 //Wall.Create(uidoc.Document, curve, wallType.Id, Level.Id, 30, 0.0, false, false);
             }
 
-            Draw._Curve(uidoc.Document, allCurvesToDraw);
+            utils.Draw._Curve(uidoc.Document, allCurvesToDraw);
         };
     }
 }

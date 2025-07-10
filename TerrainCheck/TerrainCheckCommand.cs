@@ -2,11 +2,9 @@
 using Autodesk.Revit.DB.Architecture;
 using Autodesk.Revit.UI;
 using GvcRevitPlugins.TerrainCheck.Rules;
-using Newtonsoft.Json.Linq;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Security.Cryptography.X509Certificates;
 using utils = GvcRevitPlugins.Shared.Utils;
 
 // Formas de divisa: Parede normal, Parade cortina, Linhas do modelo, guarda corpo, **linha de divisa, superfice topografica e vinculo AutoCad 2D
@@ -44,16 +42,9 @@ namespace GvcRevitPlugins.TerrainCheck
             UIDocument uiDoc = uiApp.ActiveUIDocument;
             Document doc = uiDoc.Document;
 
-            //var bound = uiDoc.Selection.GetElementIds().FirstOrDefault();
-            //var element = bound != ElementId.InvalidElementId ? doc.GetElement(bound) : null;
-            //var geometry = element.get_Geometry(new Options());
-            //var lines = geometry.OfType<Curve>().ToArray();
+            SelectionToLines selectionToLines = new SelectionToLines(TerrainCheckApp._thisApp.Store.TerrainBoundaryIds, doc);
 
-            //var points = utils.XYZUtils.DivideCurvesEvenly(lines, 1000);
-            //Draw._XYZ(doc, points);
-
-
-            //return;
+            return;
 
             (double platformElevationRaw, Level platformLevel) = GetPlatformElevationWithLevel(uiDoc);
             double platformElevation = UnitUtils.ConvertToInternalUnits(platformElevationRaw, UnitTypeId.Meters);
@@ -82,6 +73,157 @@ namespace GvcRevitPlugins.TerrainCheck
             transaction.Commit();
         }
 
+        // TEST FUNCTIONS
+        public virtual Curve[] GetHorizontalLinesFromSelection(UIDocument uiDoc, out List<ElementId> selectedIds)
+        {
+            selectedIds = new List<ElementId>();
+            var doc = uiDoc.Document;
+            var pickedRefs = uiDoc.Selection.PickObjects(Autodesk.Revit.UI.Selection.ObjectType.Element, "Selecione os elementos do contorno");
+
+            if (pickedRefs == null || pickedRefs.Count == 0)
+                return null;
+
+            List<Curve> horizontalLines = new();
+
+            foreach (var reference in pickedRefs)
+            {
+                var element = doc.GetElement(reference.ElementId);
+                if (element == null) continue;
+
+                selectedIds.Add(element.Id);
+
+                if (element is Railing railing)
+                {
+                    var path = railing.GetPath();
+                    if (path == null) continue;
+
+                    foreach (var curve in path)
+                    {
+                        if (curve is Line line)
+                            horizontalLines.Add(ProjectLineToZ0(line));
+                    }
+
+                    continue;
+                }
+
+                var geoOptions = new Options { ComputeReferences = false, IncludeNonVisibleObjects = false };
+                var geometry = element.get_Geometry(geoOptions);
+                if (geometry == null) continue;
+
+                foreach (GeometryObject geoObj in geometry)
+                {
+                    if (geoObj is GeometryInstance geoInstance)
+                    {
+                        foreach (var instanceObj in geoInstance.GetInstanceGeometry())
+                        {
+                            if (instanceObj is Solid solid)
+                            {
+                                AddProjectedLineFromSolid(solid);
+                            }
+                            else if (instanceObj is Face face)
+                            {
+                                var faceLine = GetLineFromFace(face);
+                                if (faceLine != null) horizontalLines.Add(faceLine);
+                            }
+                        }
+                    }
+                    else if (geoObj is Solid solid)
+                    {
+                        AddProjectedLineFromSolid(solid);
+                    }
+                    else if (geoObj is Face face)
+                    {
+                        var faceLine = GetLineFromFace(face);
+                        if (faceLine != null) horizontalLines.Add(faceLine);
+                    }
+                }
+            }
+
+            return horizontalLines.Count > 0 ? horizontalLines.ToArray() : null;
+
+            Line ProjectLineToZ0(Line line)
+            {
+                var p0 = line.GetEndPoint(0);
+                var p1 = line.GetEndPoint(1);
+                return Line.CreateBound(
+                    new XYZ(p0.X, p0.Y, 0),
+                    new XYZ(p1.X, p1.Y, 0)
+                );
+            }
+
+            Line GetLineFromFace(Face face)
+            {
+                if (face == null) return null;
+
+                var mesh = face.Triangulate();
+                if (mesh == null || mesh.Vertices.Count < 2) return null;
+
+                var vertices = mesh.Vertices.Cast<XYZ>().ToList();
+                var center = new XYZ(
+                    vertices.Average(v => v.X),
+                    vertices.Average(v => v.Y),
+                    vertices.Average(v => v.Z)
+                );
+
+                double minX = vertices.Min(v => v.X);
+                double maxX = vertices.Max(v => v.X);
+
+                var start = new XYZ(minX, center.Y, 0);
+                var end = new XYZ(maxX, center.Y, 0);
+
+                return Line.CreateBound(start, end);
+            }
+
+            Line GetLineFromGeometry(Solid solid)
+            {
+                if (solid == null) return null;
+
+                List<XYZ> allVertices = new();
+                foreach (Face f in solid.Faces)
+                {
+                    Mesh mesh = f.Triangulate();
+                    if (mesh != null && mesh.Vertices != null)
+                    {
+                        foreach (XYZ v in mesh.Vertices)
+                        {
+                            allVertices.Add(v);
+                        }
+                    }
+                }
+
+                if (allVertices.Count == 0) return null;
+
+                var center = new XYZ(
+                    allVertices.Average(v => v.X),
+                    allVertices.Average(v => v.Y),
+                    allVertices.Average(v => v.Z)
+                );
+
+                double minX = allVertices.Min(v => v.X);
+                double maxX = allVertices.Max(v => v.X);
+
+                var start = new XYZ(minX, center.Y, 0); 
+                var end = new XYZ(maxX, center.Y, 0);
+
+                return Line.CreateBound(start, end);
+             }
+
+            void AddProjectedLineFromSolid(Solid solid)
+            {
+                if (solid == null || solid.Faces.IsEmpty) return;
+
+                foreach (Face face in solid.Faces)
+                {
+                    var line = GetLineFromFace(face);
+                    if (line != null)
+                    {
+                        horizontalLines.Add(line);
+                        break; // uma face basta
+                    }
+                }
+            }
+        }
+
         public virtual XYZ[] FindIntersectionPoints(Document doc, Face face, XYZ normal, IEnumerable<Curve> boundaryPath, Face[] terrainFaces, int subdivisionsPerCurve)
         {
             if (face == null || normal == null || boundaryPath == null || !boundaryPath.Any()) return null;
@@ -89,12 +231,12 @@ namespace GvcRevitPlugins.TerrainCheck
             List<XYZ> result = new();
             var startPoints = utils.XYZUtils.DivideCurvesEvenly(boundaryPath, subdivisionsPerCurve);
             var horizontalLine = GetFaceHorizontalLine(face);
-            Draw._Curve(doc, horizontalLine);
+            utils.Draw._Curve(doc, horizontalLine);
 
             foreach (var startPoint in startPoints)
             {
                 var ray = Line.CreateUnbound(startPoint, normal);
-                Draw._Curve(doc, ray);
+                utils.Draw._Curve(doc, ray);
 
                 var resultSet = horizontalLine?.Intersect(ray, out IntersectionResultArray _);
                 if (resultSet != SetComparisonResult.Overlap) continue;
@@ -105,7 +247,7 @@ namespace GvcRevitPlugins.TerrainCheck
             }
 
             return result.ToArray();
-        }
+        } 
 
         public virtual XYZ ProjectPointOntoTopography(Face[] faces, XYZ point)
         {
@@ -220,178 +362,6 @@ namespace GvcRevitPlugins.TerrainCheck
             XYZ end = new XYZ(right, center.Y, flat ? 0 : center.Z);
 
             return Line.CreateBound(start, end);
-        }
-    }
-
-    public static class Draw
-    {
-        public static List<ModelCurve> modelCurves = new List<ModelCurve>();
-        public static List<DirectShape> directShapes = new List<DirectShape>();
-
-        public static void Remove(Document doc)
-        {
-            using (Transaction tx = new Transaction(doc, "Remover curvas e formas"))
-            {
-                tx.Start();
-
-                foreach (ModelCurve curve in modelCurves)
-                    doc.Delete(curve.Id);
-
-                foreach (DirectShape shape in directShapes)
-                    doc.Delete(shape.Id);
-
-                tx.Commit();
-            }
-
-            modelCurves.Clear();
-            directShapes.Clear();
-        }
-
-        public static void Remove<T>(Document doc, T item)
-        {
-            Remove<T>(doc, new List<T> { item });
-        }
-
-        public static void Remove<T>(Document doc, IEnumerable<T> items)
-        {
-            using (Transaction tx = new Transaction(doc, "Remover elementos"))
-            {
-                tx.Start();
-
-                foreach (T item in items)
-                {
-                    if (item is Element element)
-                        doc.Delete(element.Id);
-
-                    else if (item is ElementId id)
-                        doc.Delete(id);
-                }
-
-                tx.Commit();
-            }
-        }
-
-        public static void _XYZ(Document doc, IEnumerable<XYZ> p, double size = 0.5)
-        {
-            foreach (XYZ point in p)
-                _XYZ(doc, point, size);
-        }
-
-        public static void _XYZ(Document doc, XYZ p, double size = 0.5)
-        {
-            if (!doc.IsModifiable)
-            {
-                using (Transaction transaction = new Transaction(doc, "Draw XYZ Point"))
-                {
-                    transaction.Start();
-
-                    Execute();
-
-                    transaction.Commit();
-                }
-                return;
-            }
-
-            Execute();
-
-            void Execute()
-            {
-                double radius = size;
-
-                Arc arc = Arc.Create(p + new XYZ(0, 0, -radius), p + new XYZ(0, 0, radius), p + new XYZ(radius, 0, 0));
-
-                Line linha1 = Line.CreateBound(arc.GetEndPoint(1), arc.GetEndPoint(0));
-
-                CurveLoop profile = CurveLoop.Create(new List<Curve> { arc, linha1 });
-
-                Autodesk.Revit.DB.Frame eixo = new Autodesk.Revit.DB.Frame(
-                    p,
-                    XYZ.BasisX,
-                    XYZ.BasisY,
-                    XYZ.BasisZ
-                );
-
-                Solid sphere = GeometryCreationUtilities.CreateRevolvedGeometry(
-                    eixo,
-                    new List<CurveLoop> { profile },
-                    0,
-                    2 * Math.PI
-                );
-
-                DirectShape shape = DirectShape.CreateElement(doc, new ElementId(BuiltInCategory.OST_GenericModel));
-                shape.SetShape(new List<GeometryObject> { sphere });
-                shape.Name = "Sphere at " + p.ToString();
-
-                directShapes.Add(shape);
-            }
-        }
-
-        public static void _Curve(Document doc, IEnumerable<Curve> c)
-        {
-            foreach (Curve curve in c) 
-                _Curve(doc, curve);
-        }
-
-        public static void _Curve(Document doc, Curve curve)
-        {
-            if (!doc.IsModifiable)
-
-                using (Transaction transaction = new Transaction(doc, "Draw Curve"))
-                {
-                    transaction.Start();
-                    Execute();
-                    transaction.Commit();
-                }
-
-            else
-                Execute();
-
-            void Execute()
-            {
-                Curve boundCurve = ToBound(curve);
-
-                Plane plane = GetPlane(boundCurve);
-                SketchPlane sketchPlane = SketchPlane.Create(doc, plane);
-                doc.Create.NewModelCurve(boundCurve, sketchPlane);
-            }
-
-            Plane GetPlane(Curve curve)
-            {
-                XYZ p0 = curve.GetEndPoint(0);
-                XYZ p1 = curve.GetEndPoint(1);
-                XYZ direction = (p1 - p0).Normalize();
-
-                XYZ normal;
-                if (direction.CrossProduct(XYZ.BasisZ).IsZeroLength())
-                    normal = XYZ.BasisX;
-
-                else
-                    normal = direction.CrossProduct(XYZ.BasisZ).Normalize();
-
-                XYZ yVector = normal.CrossProduct(direction).Normalize();
-
-                return Plane.CreateByOriginAndBasis(p0, direction, yVector);
-            }
-
-            Curve ToBound(Curve curve)
-            {
-                if (curve.IsBound)
-                    return curve;
-
-                if (curve is Line line)
-                {
-                    XYZ origin = line.Origin;
-                    XYZ dir = line.Direction;
-
-                    double length = 1000;
-                    XYZ p0 = origin - dir * (length / 2);
-                    XYZ p1 = origin + dir * (length / 2);
-
-                    return Line.CreateBound(p0, p1);
-                }
-                else
-                    throw new ArgumentException("Curve type not supported for unbound conversion.");
-            }
         }
     }
 }

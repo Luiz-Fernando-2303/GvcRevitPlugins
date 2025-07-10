@@ -4,6 +4,7 @@ using Autodesk.Revit.UI;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Numerics;
 using utils = GvcRevitPlugins.Shared.Utils;
 
 namespace GvcRevitPlugins.TerrainCheck
@@ -57,6 +58,11 @@ namespace GvcRevitPlugins.TerrainCheck
             public Face Face { get; set; }
         }
 
+        //1- linha de divisa já separa a superfície interna do externo, 
+        //2- cria uma faixa de domínio de 20 metros(vizinhança )
+        //3- cria uma planta de situação e locação automatizadas com coordenadas UTM
+        //4- (utiliza base google como referencia?
+
         public void Initialize(UIApplication uiApp)
         {
             UiDoc = uiApp.ActiveUIDocument;
@@ -75,6 +81,16 @@ namespace GvcRevitPlugins.TerrainCheck
 
         public bool SetTerrainBoundary()
         {
+            // If pre-made items are available, use them
+            if (PreMadePath != null)
+            {
+                TerrainBoundaryLines = PreMadePath;
+                TopoFaces = PreMadeTopoFaces;
+                Toposolid = Doc.GetElement(PreMadeTopoSolidId) as Toposolid;
+
+                return true;
+            }
+
             TerrainBoundaryId = GetTerrainBoundaryId();
             TerrainBoundaryLines = GetTerrainBoundaryPath(TerrainBoundaryId, out ElementId toposolidId);
             if (TerrainBoundaryLines == null || TerrainBoundaryLines.All(c => c == null)) return false;

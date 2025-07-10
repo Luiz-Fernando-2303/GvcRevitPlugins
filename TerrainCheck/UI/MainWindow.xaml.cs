@@ -29,7 +29,7 @@ namespace GvcRevitPlugins.TerrainCheck.UI
             InitializeComponent();
             var coreWebView2CreationProperties = (CoreWebView2CreationProperties)Resources["EvergreenWebView2CreationProperties"];
             coreWebView2CreationProperties.UserDataFolder = Path.GetTempPath();
-            viewModel = new MainWindowViewModel(null, webView, app);
+            viewModel = new MainWindowViewModel(null, app);
             DataContext = viewModel;
         }
     }

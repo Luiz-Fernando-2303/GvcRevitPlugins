@@ -34,6 +34,7 @@ namespace GvcRevitPlugins.TerrainCheck.UI
             Result = Math.Round(UnitUtils.ConvertFromInternalUnits(result.OffsetUsed / 2, UnitTypeId.Meters), 2);
         }
     }
+
     public partial class TerrainPluginInterface : Window
     {
         public TerrainPlugin Plugin { get; set; }
@@ -86,11 +87,11 @@ namespace GvcRevitPlugins.TerrainCheck.UI
                                 StatusText.Text = "Erro ao selecionar divisa ou linha.";
                             }
                         });
-                    });
 
-                    Plugin.PreMadePath = BouaryLineToRailing.FlatCurves;
-                    Plugin.PreMadeTopoSolidId = BouaryLineToRailing.Toposolid?.Id;
-                    Plugin.PreMadeTopoFaces = BouaryLineToRailing.ToposolidFaces;
+                        Plugin.PreMadePath = BouaryLineToRailing.FlatCurves;
+                        Plugin.PreMadeTopoSolidId = BouaryLineToRailing.Toposolid?.Id;
+                        Plugin.PreMadeTopoFaces = BouaryLineToRailing.ToposolidFaces;
+                    });
                 }
 
                 else if (Plugin.SetTerrainBoundary())
