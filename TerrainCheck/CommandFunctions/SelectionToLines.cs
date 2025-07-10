@@ -14,7 +14,7 @@ namespace GvcRevitPlugins.TerrainCheck
 {
     public class SelectionToLines
     {
-        Curve[] Lines { get; set; }
+        public Curve[] Lines { get; set; }
         IEnumerable<ElementId> ElementIds { get; set; }
         IEnumerable<Element> Elements { get; set; }
         Document Document_ { get; set; }
@@ -51,7 +51,11 @@ namespace GvcRevitPlugins.TerrainCheck
                 }
 
                 // Obtenha a geometria do elemento
-                GeometryElement geomElement = element.get_Geometry(new Options());
+                Options options = new Options();
+                options.View = Document_.ActiveView;
+                options.IncludeNonVisibleObjects = true;
+
+                GeometryElement geomElement = element.get_Geometry(options);
                 if (geomElement == null) continue;
 
                 foreach (GeometryObject geoObj in geomElement)
@@ -82,6 +86,11 @@ namespace GvcRevitPlugins.TerrainCheck
                             {
                                 var faceLine = GetLineFromFace(instFace);
                                 if (faceLine != null) horizontalLines.Add(faceLine);
+                            }
+                            if (instanceObj is Line instline)
+                            {
+                                var line = ProjectCurveToZ0(instline);
+                                if (line != null) horizontalLines.Add(line);
                             }
                         }
                     }

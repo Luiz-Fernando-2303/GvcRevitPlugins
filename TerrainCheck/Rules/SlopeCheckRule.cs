@@ -4,6 +4,8 @@ using System;
 using System.Collections.Generic;
 using System.Numerics;
 
+using utils = GvcRevitPlugins.Shared.Utils;
+
 namespace GvcRevitPlugins.TerrainCheck.Rules
 {
     public class SlopeCheckRule : ITerrainCheckRule
@@ -85,10 +87,16 @@ namespace GvcRevitPlugins.TerrainCheck.Rules
                 var end = Shared.Utils.XYZUtils.GetEndPoint(start, normal, offset);
                 endPoints.Add(end);
 
-                // Cria linha entre o ponto atual e o anterior válido
-                if (end != null && endPoints.Count > 1 && endPoints[^2] != null)
+                try
                 {
-                    wallCurves.Add(Line.CreateBound(endPoints[^2], end));
+                    // Cria linha entre o ponto atual e o anterior válido
+                    if (end != null && endPoints.Count > 1 && endPoints[^2] != null)
+                    {
+                        wallCurves.Add(Line.CreateBound(endPoints[^2], end));
+                    }
+                } catch
+                {
+                    continue;
                 }
             }
 

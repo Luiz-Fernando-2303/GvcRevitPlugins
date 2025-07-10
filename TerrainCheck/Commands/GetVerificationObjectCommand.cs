@@ -8,7 +8,7 @@ using System.Threading.Tasks;
 
 namespace GvcRevitPlugins.TerrainCheck.Commands
 {
-    public class GetTerrainInfoCommand : AsyncCommandBase, IGvcCommand
+    public class GetVerificationObjectCommand : AsyncCommandBase, IGvcCommand
     {
         public override async Task ExecuteAsync(object parameter)
         {

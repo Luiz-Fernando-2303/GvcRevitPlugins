@@ -64,7 +64,7 @@ namespace GvcRevitPlugins.TerrainCheck.UI
             SetPlatformElevation = new RelayCommand(() => { new SetPlatformElevationCommand().Execute(this); });
             SetBuildingFaceId = new RelayCommand(() => { new SetBuildingFaceIdCommand().Execute(this); });
             SetTerrainBoundaryId = new RelayCommand(() => { new SetTerrainBoundaryIdCommand().Execute(this); });
-            GetTerrainInfoCommand = new RelayCommand(() => { new GetTerrainInfoCommand().Execute(this); });
+            GetTerrainInfoCommand = new RelayCommand(() => { new GetVerificationObjectCommand().Execute(this); });
             DrawTerrainCheckCommand = new RelayCommand(() => { new DrawTerrainCheckCommand().Execute(this); });
         }
         public void OnPropertyChanged([CallerMemberName] string propertyName = "")

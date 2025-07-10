@@ -1,4 +1,6 @@
 ﻿using Autodesk.Revit.DB;
+using Autodesk.Revit.DB.Visual;
+using GvcRevitPlugins.TerrainCheck;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -240,32 +242,34 @@ namespace GvcRevitPlugins.Shared.Utils
 
             points.Add(currentCurve.GetEndPoint(0));
 
-
-            for (int i = 1; i <= subdivisions; i++)
+            try
             {
-                targetLength = segmentLength * i;
-
-                while (accumulatedLength + currentCurve.Length < targetLength)
+                for (int i = 1; i <= subdivisions; i++)
                 {
-                    accumulatedLength += currentCurve.Length;
-                    currentCurveIndex++;
+                    targetLength = segmentLength * i;
 
-                    if (currentCurveIndex > curves.Count)
-                        return points; 
+                    while (accumulatedLength + currentCurve.Length < targetLength)
+                    {
+                        accumulatedLength += currentCurve.Length;
+                        currentCurveIndex++;
 
-                    currentCurve = curves[currentCurveIndex];
-                    currentCurveStart = currentCurve.GetEndParameter(0);
-                    currentCurveEnd = currentCurve.GetEndParameter(1);
+                        if (currentCurveIndex > curves.Count)
+                            return points;
+
+                        currentCurve = curves[currentCurveIndex];
+                        currentCurveStart = currentCurve.GetEndParameter(0);
+                        currentCurveEnd = currentCurve.GetEndParameter(1);
+                    }
+
+                    double remaining = targetLength - accumulatedLength;
+                    double fraction = remaining / currentCurve.Length;
+
+                    double param = currentCurveStart + fraction * (currentCurveEnd - currentCurveStart);
+                    XYZ pt = currentCurve.Evaluate(param, false);
+
+                    points.Add(pt);
                 }
-
-                double remaining = targetLength - accumulatedLength;
-                double fraction = remaining / currentCurve.Length;
-
-                double param = currentCurveStart + fraction * (currentCurveEnd - currentCurveStart);
-                XYZ pt = currentCurve.Evaluate(param, false);
-
-                points.Add(pt);
-            }
+            } catch { }
 
             return points;
         }
@@ -310,6 +314,110 @@ namespace GvcRevitPlugins.Shared.Utils
             XYZ displacement = normalizedDirection * length;
             XYZ endPoint = origin + displacement;
             return endPoint;
+        }
+
+        public static Line GetFaceHorizontalLine(Face face, bool flat = true)
+        {
+            if (face == null) return null;
+
+            Mesh mesh = face.Triangulate();
+            if (mesh == null) return null;
+
+            List<XYZ> vertices = mesh.Vertices.Cast<XYZ>().ToList();
+            XYZ center = new XYZ(
+                vertices.Average(v => v.X),
+                vertices.Average(v => v.Y),
+                vertices.Average(v => v.Z)
+            );
+
+            double maxWidth = vertices.Max(v => v.X);
+            double left = center.X - maxWidth / 2;
+            double right = center.X + maxWidth / 2;
+
+            XYZ start = new XYZ(left, center.Y, flat ? 0 : center.Z);
+            XYZ end = new XYZ(right, center.Y, flat ? 0 : center.Z);
+
+            return Line.CreateBound(start, end);
+        }
+
+        public static Line GetLongestHorizontalEdge(Face face, bool flat = true)
+        {
+            if (face == null) return null;
+
+            EdgeArray edges = new();
+
+            foreach (var ed in face.EdgeLoops.Cast<EdgeArray>().SelectMany(loop => loop.Cast<Edge>()))
+                edges.Append(ed);
+
+            Curve longest = null;
+            double maxLength = 0;
+
+            foreach (Edge edge in edges)
+            {
+                Curve curve = edge.AsCurve();
+                XYZ direction = (curve.GetEndPoint(1) - curve.GetEndPoint(0)).Normalize();
+
+                if (Math.Abs(direction.Z) < 1e-6)
+                {
+                    double length = curve.Length;
+                    if (length > maxLength)
+                    {
+                        maxLength = length;
+                        longest = curve;
+                    }
+                }
+            }
+
+            if (longest is not Line line) return null;
+
+            XYZ p0 = line.GetEndPoint(0);
+            XYZ p1 = line.GetEndPoint(1);
+
+            if (flat)
+            {
+                p0 = new XYZ(p0.X, p0.Y, 0);
+                p1 = new XYZ(p1.X, p1.Y, 0);
+            }
+
+            return Line.CreateBound(p0, p1);
+        }
+
+
+        public static Face[] FilterTopoFaces(Document doc, ElementId toposolidId, out Toposolid toposolid)
+        {
+            toposolid = null;
+            var element = doc.GetElement(toposolidId);
+            if (element is not Toposolid ts) return null;
+            toposolid = ts;
+
+            var geometry = ts.get_Geometry(new Options());
+
+            return geometry.OfType<Solid>()
+                           .Where(s => s.Faces.Size > 0)
+                           .SelectMany(s => s.Faces.Cast<Face>())
+                           .Where(f => FilterPlanes(FaceNormal(f, out UV _)))
+                           .ToArray();
+        }
+
+        public static bool FilterPlanes(XYZ normal)
+        {
+            return !(Math.Abs(normal.X) == 1 || Math.Abs(normal.Y) == 1 || normal.Z == -1);
+        }
+
+        public static XYZ ProjectPointOntoTopography(Face[] faces, XYZ point)
+        {
+            foreach (var face in faces)
+            {
+                var normal = FaceNormal(face, out UV _);
+                if (!FilterPlanes(normal)) continue;
+
+                var verticalLine = Line.CreateUnbound(new XYZ(point.X, point.Y, 0), XYZ.BasisZ);
+                var result = face.Intersect(verticalLine, out IntersectionResultArray intersectionResults);
+                if (result == SetComparisonResult.Overlap)
+                    return intersectionResults.get_Item(0).XYZPoint;
+            }
+
+            return null;
         }
     }
 
@@ -429,12 +537,21 @@ namespace GvcRevitPlugins.Shared.Utils
                 using (Transaction transaction = new Transaction(doc, "Draw Curve"))
                 {
                     transaction.Start();
-                    Execute();
+                    try
+                    {
+                        Execute();
+                    } catch { }
                     transaction.Commit();
                 }
 
             else
-                Execute();
+            {
+                try
+                {
+                    Execute();
+                }
+                catch { }
+            }
 
             void Execute()
             {
