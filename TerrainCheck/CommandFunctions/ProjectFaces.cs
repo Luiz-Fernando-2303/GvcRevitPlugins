@@ -22,9 +22,9 @@ namespace GvcRevitPlugins.TerrainCheck
         Face[] TerrainFaces { get; set; }
 
         public XYZ[] ProjectedPoints { get; set; }
-        public List<(Face face, XYZ point)> results = new List<(Face face, XYZ point)>();
+        public List<(Face face, XYZ flatPoint, XYZ projectedPoint)> results = new List<(Face face, XYZ flatPoint, XYZ projectedPoint)>();
 
-        public ProjectFaces(UIDocument Uidocument, ElementId elementid, Curve[] lines, int subdivision)
+        public ProjectFaces(UIDocument Uidocument, ElementId elementid, Curve[] lines, int subdivision, double baseElevation)
         {
             Document = Uidocument.Document;
             Element = Document.GetElement(elementid);
@@ -66,57 +66,56 @@ namespace GvcRevitPlugins.TerrainCheck
             Curve[] connected = ConnectPoints(ProjectedPoints);
             CreateExtrudedWallFromCurves(connected);
 
-            utils.Draw._XYZ(Document, ProjectedPoints);
-            utils.Draw._XYZ(Document, SlopePoints());
+            var slopePoints = SlopePoints(baseElevation);
+            Curve[] connectedSlopePoints = ConnectPoints(slopePoints);
+            CreateExtrudedWallFromCurves(connectedSlopePoints);
         }
 
-        private XYZ[] SlopePoints()
+        private XYZ[] SlopePoints(double baseElevation)
         {
             List<XYZ> resultPoints = new();
 
             foreach (var result in results)
             {
                 Face face = result.face;
-                XYZ projectedPoint = result.point;
+                XYZ projectedPoint = result.projectedPoint;
+                XYZ flatPoint = result.flatPoint;
 
-                // Normal da face
-                BoundingBoxUV bbox = face.GetBoundingBox();
-                UV midUV = new UV((bbox.Min.U + bbox.Max.U) / 2, (bbox.Min.V + bbox.Max.V) / 2);
-                XYZ faceNormal = face.ComputeNormal(midUV).Normalize();
+                Line baseFlatLine = utils.XYZUtils.GetLongestHorizontalEdge(face);
+                Line baseLine = utils.XYZUtils.GetLongestHorizontalEdge(face, false);
+                XYZ normal = utils.XYZUtils.FaceNormal(face, out _);
+                if (normal == null) continue;
 
-                // Linha horizontal da base da face
-                Line horizontalBaseLine = utils.XYZUtils.GetLongestHorizontalEdge(face);
-                if (horizontalBaseLine == null) continue;
-
-                // Ponto projetado na altura 0
-                XYZ baseProjected = new XYZ(projectedPoint.X, projectedPoint.Y, 0);
-
-                // Criar raio na direção da normal a partir do ponto base (em Z = 0)
-                Line ray = Line.CreateUnbound(baseProjected, faceNormal);
-
-                // Interseção do raio com a linha da base
-                SetComparisonResult intersectionResult = horizontalBaseLine.Intersect(ray, out IntersectionResultArray intersectionArray);
+                // Encontrar interseção com linha base do plano
+                Line ray = Line.CreateUnbound(flatPoint, normal);
+                SetComparisonResult intersectionResult = baseFlatLine.Intersect(ray, out IntersectionResultArray intersectionArray);
                 if (intersectionResult != SetComparisonResult.Overlap || intersectionArray == null || intersectionArray.IsEmpty)
                     continue;
 
                 XYZ intersection = intersectionArray.get_Item(0).XYZPoint;
+                XYZ transformedIntersection = new XYZ(intersection.X, intersection.Y, baseLine.GetEndPoint(0).Z);
 
-                // Cálculo da distância de deslocamento
-                XYZ faceOrigin = face.Evaluate(midUV);
-                double heightDifference = Math.Abs(faceOrigin.Z - projectedPoint.Z);
-                double x = heightDifference / 2;
+                // Parâmetros de altura e distância mínima
+                double wallHeight = UnitUtils.ConvertToInternalUnits(TerrainCheckApp._thisApp.Store.TerrainCheckStrucWallHeight, UnitTypeId.Meters);
+                double minDistance = UnitUtils.ConvertToInternalUnits(TerrainCheckApp._thisApp.Store.MinimumDistance, UnitTypeId.Meters);
+                if (wallHeight > minDistance)
+                    minDistance = wallHeight - UnitUtils.ConvertToInternalUnits(1, UnitTypeId.Meters);
 
-                // Direção perpendicular à inclinação da face (no plano XY)
-                XYZ horizontalDirection = new XYZ(faceNormal.X, faceNormal.Y, 0).Normalize();
-                XYZ horizontalNormal = new XYZ(-horizontalDirection.Y, horizontalDirection.X, 0).Normalize();
+                // Calcula offset real
+                double verticalOffset = (projectedPoint.Z - baseElevation) / 2;
+                verticalOffset = Math.Max(verticalOffset, minDistance);
 
-                // Ponto deslocado horizontalmente
-                XYZ moved = intersection + horizontalNormal * x;
+                // Inclinação simulada adicional proporcional à diferença de altura
+                double inclinationOffset = Math.Abs(transformedIntersection.Z - projectedPoint.Z) / 2;
 
-                // Recolocar na altura da linha da face
-                double zBase = horizontalBaseLine.GetEndPoint(0).Z; // ou GetEndPoint(1).Z, devem ser iguais
-                XYZ finalPoint = new XYZ(moved.X, moved.Y, zBase);
+                // Soma total de deslocamento na direção da normal (real + inclinação)
+                double totalOffset = verticalOffset + inclinationOffset;
 
+                // Deslocar ponto ao longo da normal (ambos componentes juntos)
+                XYZ movedPoint = utils.XYZUtils.GetEndPoint(transformedIntersection, normal, totalOffset);
+
+                // Projeta o ponto deslocado de volta no terreno
+                XYZ finalPoint = utils.XYZUtils.ProjectPointOntoTopography(TerrainFaces, movedPoint);
                 resultPoints.Add(finalPoint);
             }
 
@@ -211,8 +210,15 @@ namespace GvcRevitPlugins.TerrainCheck
                     Line horizontalLine = utils.XYZUtils.GetLongestHorizontalEdge(face);
                     if (horizontalLine == null) continue;
 
-                    Line ray = Line.CreateUnbound(startPoint, normal);
+                    XYZ faceCentroid = (horizontalLine.GetEndPoint(0) + horizontalLine.GetEndPoint(1)) / 2;
+                    XYZ directionToFace = (faceCentroid - startPoint).Normalize();
 
+                    double dot = normal.Normalize().DotProduct(directionToFace);
+
+                    // Permitir apenas ângulos entre 90° e 180° → dot entre -1 e 0
+                    if (dot >= 0) continue;
+
+                    Line ray = Line.CreateUnbound(startPoint, normal);
                     var resultSet = horizontalLine?.Intersect(ray, out _);
                     if (resultSet != SetComparisonResult.Overlap) continue;
 
@@ -220,7 +226,7 @@ namespace GvcRevitPlugins.TerrainCheck
                     if (projected != null)
                     {
                         projectedPoints.Add(projected);
-                        results.Add((face, projected));
+                        results.Add((face, startPoint, projected));
                         break;
                     }
                 }

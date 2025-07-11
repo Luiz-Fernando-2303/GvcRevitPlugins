@@ -43,13 +43,14 @@ namespace GvcRevitPlugins.TerrainCheck
             Document doc = uiDoc.Document;
 
             SelectionToLines selectionToLines = new SelectionToLines(TerrainCheckApp._thisApp.Store.TerrainBoundaryIds, doc);
-            ProjectFaces projectFaces = new ProjectFaces(uiDoc, TerrainCheckApp._thisApp.Store.IntersectionElementId, selectionToLines.Lines, TerrainCheckApp._thisApp.Store.SubdivisionLevel);
-
-            return;
 
             (double platformElevationRaw, Level platformLevel) = GetPlatformElevationWithLevel(uiDoc);
             double platformElevation = UnitUtils.ConvertToInternalUnits(platformElevationRaw, UnitTypeId.Meters);
             if (platformElevation == double.NegativeInfinity || platformLevel == null) return;
+
+            ProjectFaces projectFaces = new ProjectFaces(uiDoc, TerrainCheckApp._thisApp.Store.IntersectionElementId, selectionToLines.Lines, TerrainCheckApp._thisApp.Store.SubdivisionLevel, platformElevation);
+
+            return;
 
             ElementId terrainBoundaryId = GetTerrainBoundaryId(uiDoc);
             int subdivisionLevel = TerrainCheckApp._thisApp.Store.SubdivisionLevel;
