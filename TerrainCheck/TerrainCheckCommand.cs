@@ -7,15 +7,10 @@ using System.Collections.Generic;
 using System.Linq;
 using utils = GvcRevitPlugins.Shared.Utils;
 
-// Formas de divisa: Parede normal, Parade cortina, Linhas do modelo, guarda corpo, **linha de divisa, superfice topografica e vinculo AutoCad 2D
-// Clicar na linha de divisa gerar os guarda corpos
-
-
-// passo 1: configurar parametros (talude ou arrimo, norma tecnica (CEF, execucaco, estudal, municipal, federal, dnit e der) e [tipo de espaco])
-// passo 2: clicar nos objetos de referencia (linha de divisa(mostra para o usuario e obrigatorio), divisa de analise(guarda corpo), face(do edificio), piso(plato acabado))
-// passo 3: visualizacao dos resultados (vista 3D, planta, corte, quantitativos e graficos)
-// passo 4: validacao dos resultados (area permeavel, voluem de concreto, corte\aterro e drenagem)
-// passo 5: publicacao de resultados (automacao de prancha, cotas e detalhamentos executivos)
+// Tipo de selecao
+// altura previa do plato
+// Tipo de objeto de teste
+// Remopver ou atualizar parametros da interface
 
 namespace GvcRevitPlugins.TerrainCheck
 {
@@ -72,7 +67,7 @@ namespace GvcRevitPlugins.TerrainCheck
 
             CheckRules.Execute(uiDoc, projectedFaceData.FaceProjection, projectedFaceData.FaceNormal, boundaryPoints, platformElevation, true, platformLevel);
 
-            transaction.Commit();
+            transaction.Commit(); 
         }
 
 

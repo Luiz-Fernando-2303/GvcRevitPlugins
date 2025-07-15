@@ -1,4 +1,5 @@
 ﻿using Autodesk.Revit.DB;
+using Autodesk.Revit.DB.Architecture;
 using Autodesk.Revit.UI;
 using Autodesk.Revit.UI.Selection;
 using System;
@@ -63,11 +64,11 @@ namespace GvcRevitPlugins.TerrainCheck
 
             ProjectLinesToFaces();
 
-            Curve[] connected = ConnectPoints(ProjectedPoints);
-            CreateExtrudedWallFromCurves(connected);
+            //Curve[] connected = ConnectPoints(ProjectedPoints);
+            //CreateExtrudedWallFromCurves(connected);
 
             var slopePoints = SlopePoints(baseElevation);
-            Curve[] connectedSlopePoints = ConnectPoints(slopePoints);
+            var connectedSlopePoints = ConnectPoints(slopePoints);
             CreateExtrudedWallFromCurves(connectedSlopePoints);
         }
 
@@ -170,27 +171,29 @@ namespace GvcRevitPlugins.TerrainCheck
                 return Array.Empty<Curve>();
 
             var curves = new List<Curve>();
-            var remaining = new HashSet<XYZ>(points);
-            var visited = new HashSet<XYZ>();
+            double totalDistance = 0;
+            int segmentCount = 0;
 
-            var current = points[0];
-            visited.Add(current);
-            remaining.Remove(current);
-
-            while (remaining.Count > 0)
+            for (int i = 1; i < points.Length; i++)
             {
-                var next = remaining
-                    .Where(p => !p.IsAlmostEqualTo(current))
-                    .OrderBy(p => p.DistanceTo(current))
-                    .FirstOrDefault();
+                var prev = points[i - 1];
+                var current = points[i];
+                double distance = prev.DistanceTo(current);
 
-                if (next == null)
-                    break;
+                double average = segmentCount > 0 ? totalDistance / segmentCount : distance;
 
-                curves.Add(Line.CreateBound(current, next));
-                visited.Add(next);
-                remaining.Remove(next);
-                current = next;
+                // Se a distância atual for maior que o dobro da média, inicia um novo segmento
+                if (segmentCount > 0 && distance > 2 * average)
+                {
+                    totalDistance = 0;
+                    segmentCount = 0;
+                }
+                else if (distance <= 20) // Aqui descartamos segmentos maiores que 5m
+                {
+                    curves.Add(Line.CreateBound(prev, current));
+                    totalDistance += distance;
+                    segmentCount++;
+                }
             }
 
             return curves.ToArray();

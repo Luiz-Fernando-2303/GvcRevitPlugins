@@ -25,7 +25,7 @@ namespace GvcRevitPlugins.TerrainCheck
             ElementIds = elementIds;
             Lines = GetLinesFromSelection();
             
-            Draw._Curve(document, Lines); // Debug drawing lines
+            //Draw._Curve(document, Lines); // Debug drawing lines
         }
 
         private Curve[] GetLinesFromSelection()
