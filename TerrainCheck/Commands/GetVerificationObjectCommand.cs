@@ -18,16 +18,21 @@ namespace GvcRevitPlugins.TerrainCheck.Commands
         public void MakeAction(object uiAppObj)
         {
             var uiApp = uiAppObj as UIApplication;
-            var uiDoc = uiApp.ActiveUIDocument;
-            var doc = uiDoc.Document;
-            var selection = uiDoc.Selection;
+            var uidoc = uiApp.ActiveUIDocument;
+            var doc = uidoc.Document;
 
-            Reference pickedRef = uiDoc.Selection.PickObject(ObjectType.Element, "Selecione o objeto de verificacao");
-            if (pickedRef == null) return;
-            Element element = uiDoc.Document.GetElement(pickedRef.ElementId);
-            TerrainCheckApp._thisApp.Store.IntersectionElementId = element.Id;
+            string selectionType = TerrainCheckApp._thisApp.Store.ObjectSelectionType;
+            ObjectType objectType = selectionType switch
+            {
+                "Face" => ObjectType.Face,
+                "Linha" or "Aresta" => ObjectType.Edge,
+                _ => ObjectType.Element
+            };
 
-            //TerrainCheckCommand.Execute(uiApp as UIApplication, false);
+            Reference reference = uidoc.Selection.PickObject(objectType, $"Select the verification target ({selectionType})");
+            if (reference == null) return;
+
+            TerrainCheckApp._thisApp.Store.IntersectionElementId = doc.GetElement(reference.ElementId).Id;
         }
     }
 }

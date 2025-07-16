@@ -64,9 +64,6 @@ namespace GvcRevitPlugins.TerrainCheck
 
             ProjectLinesToFaces();
 
-            //Curve[] connected = ConnectPoints(ProjectedPoints);
-            //CreateExtrudedWallFromCurves(connected);
-
             var slopePoints = SlopePoints(baseElevation);
             var connectedSlopePoints = ConnectPoints(slopePoints);
             CreateExtrudedWallFromCurves(connectedSlopePoints);
@@ -87,7 +84,6 @@ namespace GvcRevitPlugins.TerrainCheck
                 XYZ normal = utils.XYZUtils.FaceNormal(face, out _);
                 if (normal == null) continue;
 
-                // Encontrar interseção com linha base do plano
                 Line ray = Line.CreateUnbound(flatPoint, normal);
                 SetComparisonResult intersectionResult = baseFlatLine.Intersect(ray, out IntersectionResultArray intersectionArray);
                 if (intersectionResult != SetComparisonResult.Overlap || intersectionArray == null || intersectionArray.IsEmpty)
@@ -96,26 +92,20 @@ namespace GvcRevitPlugins.TerrainCheck
                 XYZ intersection = intersectionArray.get_Item(0).XYZPoint;
                 XYZ transformedIntersection = new XYZ(intersection.X, intersection.Y, baseLine.GetEndPoint(0).Z);
 
-                // Parâmetros de altura e distância mínima
                 double wallHeight = UnitUtils.ConvertToInternalUnits(TerrainCheckApp._thisApp.Store.TerrainCheckStrucWallHeight, UnitTypeId.Meters);
                 double minDistance = UnitUtils.ConvertToInternalUnits(TerrainCheckApp._thisApp.Store.MinimumDistance, UnitTypeId.Meters);
                 if (wallHeight > minDistance)
                     minDistance = wallHeight - UnitUtils.ConvertToInternalUnits(1, UnitTypeId.Meters);
 
-                // Calcula offset real
                 double verticalOffset = (projectedPoint.Z - baseElevation) / 2;
                 verticalOffset = Math.Max(verticalOffset, minDistance);
 
-                // Inclinação simulada adicional proporcional à diferença de altura
                 double inclinationOffset = Math.Abs(transformedIntersection.Z - projectedPoint.Z) / 2;
 
-                // Soma total de deslocamento na direção da normal (real + inclinação)
                 double totalOffset = verticalOffset + inclinationOffset;
 
-                // Deslocar ponto ao longo da normal (ambos componentes juntos)
                 XYZ movedPoint = utils.XYZUtils.GetEndPoint(transformedIntersection, normal, totalOffset);
 
-                // Projeta o ponto deslocado de volta no terreno
                 XYZ finalPoint = utils.XYZUtils.ProjectPointOntoTopography(TerrainFaces, movedPoint);
                 resultPoints.Add(finalPoint);
             }
@@ -134,7 +124,7 @@ namespace GvcRevitPlugins.TerrainCheck
                     var baseStart = curve.GetEndPoint(0);
                     var baseEnd = curve.GetEndPoint(1);
 
-                    double altura = UnitUtils.ConvertToInternalUnits(3, UnitTypeId.Meters); //TODO: seletor da altura
+                    double altura = UnitUtils.ConvertToInternalUnits(TerrainCheckApp._thisApp.Store.TerrainCheckStrucWallHeight, UnitTypeId.Meters); //TODO: seletor da altura
 
                     var up = XYZ.BasisZ.Multiply(altura);
 
@@ -143,20 +133,17 @@ namespace GvcRevitPlugins.TerrainCheck
                     var p3 = baseEnd + up;
                     var p4 = baseStart + up;
 
-                    // forma um retângulo
                     var faceLoop = new CurveLoop();
                     faceLoop.Append(Line.CreateBound(p1, p2));
                     faceLoop.Append(Line.CreateBound(p2, p3));
                     faceLoop.Append(Line.CreateBound(p3, p4));
                     faceLoop.Append(Line.CreateBound(p4, p1));
 
-                    // cria sólido a partir do perfil
                     var loops = new List<CurveLoop> { faceLoop };
                     Solid wallSolid = GeometryCreationUtilities.CreateExtrusionGeometry(loops, (p2 - p1).CrossProduct(up).Normalize(), 0.1);
 
-                    // cria DirectShape
                     var ds = DirectShape.CreateElement(Document, new ElementId(BuiltInCategory.OST_GenericModel));
-                    ds.ApplicationId = "WallExtrusion3D";
+                    ds.ApplicationId = "TerrainCheckApp";
                     ds.ApplicationDataId = Guid.NewGuid().ToString();
                     ds.SetShape(new List<GeometryObject> { wallSolid });
                 }
@@ -182,13 +169,12 @@ namespace GvcRevitPlugins.TerrainCheck
 
                 double average = segmentCount > 0 ? totalDistance / segmentCount : distance;
 
-                // Se a distância atual for maior que o dobro da média, inicia um novo segmento
                 if (segmentCount > 0 && distance > 2 * average)
                 {
                     totalDistance = 0;
                     segmentCount = 0;
                 }
-                else if (distance <= 20) // Aqui descartamos segmentos maiores que 5m
+                else if (distance <= 20)
                 {
                     curves.Add(Line.CreateBound(prev, current));
                     totalDistance += distance;
@@ -218,7 +204,6 @@ namespace GvcRevitPlugins.TerrainCheck
 
                     double dot = normal.Normalize().DotProduct(directionToFace);
 
-                    // Permitir apenas ângulos entre 90° e 180° → dot entre -1 e 0
                     if (dot >= 0) continue;
 
                     Line ray = Line.CreateUnbound(startPoint, normal);

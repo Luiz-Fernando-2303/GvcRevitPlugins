@@ -50,7 +50,23 @@ namespace GvcRevitPlugins.TerrainCheck
                     continue;
                 }
 
-                // Obtenha a geometria do elemento
+                // Caso 2: Parede (Wall)
+                if (element is Wall wall)
+                {
+                    // Verifica se a parede é horizontal
+                    if (wall.Location is LocationCurve locationCurve)
+                    {
+                        var curve = locationCurve.Curve;
+                        if (curve != null && curve is Line line)
+                        {
+                            var projectedLine = ProjectCurveToZ0(line);
+                            if (projectedLine != null) horizontalLines.Add(projectedLine);
+                        }
+                    }
+                    continue;
+                }
+
+                // Caso 3: Instâncias aninhadas
                 Options options = new Options();
                 options.View = Document_.ActiveView;
                 options.IncludeNonVisibleObjects = true;
@@ -60,20 +76,8 @@ namespace GvcRevitPlugins.TerrainCheck
 
                 foreach (GeometryObject geoObj in geomElement)
                 {
-                    // Caso 2: Paredes (Wall) e outros com geometria sólida
-                    if (geoObj is Solid solid && solid.Faces.Size > 0)
-                    {
-                        var line = GetLineFromGeometry(solid);
-                        if (line != null) horizontalLines.Add(line);
-                    }
-                    // Caso 3: Faces isoladas
-                    else if (geoObj is Face face)
-                    {
-                        var faceLine = GetLineFromFace(face);
-                        if (faceLine != null) horizontalLines.Add(faceLine);
-                    }
-                    // Caso 4: Instâncias aninhadas
-                    else if (geoObj is GeometryInstance geoInstance)
+                    // Caso 3: Instâncias aninhadas
+                    if (geoObj is GeometryInstance geoInstance)
                     {
                         foreach (GeometryObject instanceObj in geoInstance.GetInstanceGeometry())
                         {
@@ -143,13 +147,15 @@ namespace GvcRevitPlugins.TerrainCheck
 
         private Line GetLineFromGeometry(Solid solid)
         {
+            const double MinRevitLineLength = 0.0025602645572916664;
+
             if (solid == null) return null;
 
             List<XYZ> allVertices = new();
-            foreach (Face f in solid.Faces)
+            foreach (Face face in solid.Faces)
             {
-                Mesh mesh = f.Triangulate();
-                if (mesh != null && mesh.Vertices != null)
+                Mesh mesh = face.Triangulate();
+                if (mesh != null)
                 {
                     foreach (XYZ v in mesh.Vertices)
                     {
@@ -172,8 +178,10 @@ namespace GvcRevitPlugins.TerrainCheck
             var start = new XYZ(minX, center.Y, 0);
             var end = new XYZ(maxX, center.Y, 0);
 
-            return Line.CreateBound(start, end);
+            if (start.DistanceTo(end) < MinRevitLineLength)
+                return null;
 
+            return Line.CreateBound(start, end);
         }
     }
 }

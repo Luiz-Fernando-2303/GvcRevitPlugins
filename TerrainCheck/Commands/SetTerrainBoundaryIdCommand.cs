@@ -24,10 +24,42 @@ namespace GvcRevitPlugins.TerrainCheck.Commands
             var doc = uiDoc.Document;
             var selection = uiDoc.Selection;
 
-            List<Reference> pickedRef = uiDoc.Selection.PickObjects(ObjectType.Element, "Selecione os objetos de divisa").ToList();
+            List<Reference> pickedRef = selection.PickObjects(ObjectType.Element, "Selecione os objetos de divisa").ToList();
             if (pickedRef.Count == 0) return;
-            List<Element> elements = pickedRef.Select(r => uiDoc.Document.GetElement(r.ElementId)).ToList();
+
+            List<Element> elements = pickedRef
+                .Select(r => doc.GetElement(r.ElementId))
+                .ToList();
+
+            string selectionType = TerrainCheckApp._thisApp.Store.BoundarySelectionType;
+
+            switch (selectionType)
+            {
+                case "Linha de Divisa":
+                    elements = elements
+                        .Where(e => e.Category?.BuiltInCategory == BuiltInCategory.OST_SitePropertyLineSegment)
+                        .ToList();
+                    break;
+
+                case "Parede":
+                    elements = elements
+                        .Where(e => e.Category?.BuiltInCategory == BuiltInCategory.OST_Walls)
+                        .ToList();
+                    break;
+
+                case "Guarda Corpo":
+                    elements = elements
+                        .Where(e => e.Category?.BuiltInCategory == BuiltInCategory.OST_StairsRailing)
+                        .ToList();
+                    break;
+
+                default:
+                    TaskDialog.Show("Erro", "Tipo de elemento não reconhecido.");
+                    return;
+            }
+
             TerrainCheckApp._thisApp.Store.TerrainBoundaryIds = elements.Select(e => e.Id).ToList();
         }
+
     }
 }
