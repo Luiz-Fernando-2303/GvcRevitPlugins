@@ -235,7 +235,6 @@
                                 VerticalAlignment="Center">
                                 <ComboBoxItem Content="Elemento" />
                                 <ComboBoxItem Content="Face" />
-                                <ComboBoxItem Content="Linha" />
                             </ComboBox>
 
                         </StackPanel>

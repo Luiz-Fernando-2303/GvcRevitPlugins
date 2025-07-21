@@ -7,6 +7,8 @@ namespace GvcRevitPlugins.TerrainCheck
     public class Store : OnPropertyChangedBase
     {
         public ElementId IntersectionElementId { get; set; }
+        public GeometryObject IntersectionGeometricObject { get; set; }
+        public Transform ElementTransform { get; set; }
         public List<ElementId> TerrainBoundaryIds { get; set; }
         public int SubdivisionLevel { get; set; } = 10;
 

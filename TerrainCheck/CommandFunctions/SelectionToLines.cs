@@ -1,31 +1,23 @@
 ﻿using Autodesk.Revit.DB;
 using Autodesk.Revit.DB.Architecture;
-using Autodesk.Revit.UI;
-using GvcRevitPlugins.Shared.Utils;
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using System.Windows.Media;
 
 namespace GvcRevitPlugins.TerrainCheck
 {
     public class SelectionToLines
     {
-        public Curve[] Lines { get; set; }
-        IEnumerable<ElementId> ElementIds { get; set; }
-        IEnumerable<Element> Elements { get; set; }
-        Document Document_ { get; set; }
+        public Curve[]          Lines { get; set; }
+        IEnumerable<ElementId>  ElementIds { get; set; }
+        IEnumerable<Element>    Elements { get; set; }
+        Document                Document_ { get; set; }
 
         public SelectionToLines(IEnumerable<ElementId> elementIds, Document document)
         {
-            Document_ = document;
-            ElementIds = elementIds;
-            Lines = GetLinesFromSelection();
-            
-            //Draw._Curve(document, Lines); // Debug drawing lines
+            Document_   = document;
+            ElementIds  = elementIds;
+            Lines       = GetLinesFromSelection();
         }
 
         private Curve[] GetLinesFromSelection()
@@ -53,7 +45,6 @@ namespace GvcRevitPlugins.TerrainCheck
                 // Caso 2: Parede (Wall)
                 if (element is Wall wall)
                 {
-                    // Verifica se a parede é horizontal
                     if (wall.Location is LocationCurve locationCurve)
                     {
                         var curve = locationCurve.Curve;
@@ -76,7 +67,6 @@ namespace GvcRevitPlugins.TerrainCheck
 
                 foreach (GeometryObject geoObj in geomElement)
                 {
-                    // Caso 3: Instâncias aninhadas
                     if (geoObj is GeometryInstance geoInstance)
                     {
                         foreach (GeometryObject instanceObj in geoInstance.GetInstanceGeometry())
@@ -99,6 +89,7 @@ namespace GvcRevitPlugins.TerrainCheck
                         }
                     }
                 }
+
             }
 
             if (horizontalLines.Count == 0)

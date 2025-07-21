@@ -1,6 +1,4 @@
 ﻿using Autodesk.Revit.DB;
-using Autodesk.Revit.DB.Visual;
-using GvcRevitPlugins.TerrainCheck;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -269,7 +267,8 @@ namespace GvcRevitPlugins.Shared.Utils
 
                     points.Add(pt);
                 }
-            } catch { }
+            }
+            catch { }
 
             return points;
         }
@@ -344,44 +343,38 @@ namespace GvcRevitPlugins.Shared.Utils
         {
             if (face == null) return null;
 
-            EdgeArray edges = new();
+            var mesh = face.Triangulate();
+            if (mesh == null || mesh.Vertices.Count < 2) return null;
 
-            foreach (var ed in face.EdgeLoops.Cast<EdgeArray>().SelectMany(loop => loop.Cast<Edge>()))
-                edges.Append(ed);
+            var vertices = mesh.Vertices.Cast<XYZ>().Distinct(new XYZComparer()).ToList();
 
-            Curve longest = null;
-            double maxLength = 0;
+            double maxDistance = 0;
+            Line longestLine = null;
 
-            foreach (Edge edge in edges)
+            for (int i = 0; i < vertices.Count; i++)
             {
-                Curve curve = edge.AsCurve();
-                XYZ direction = (curve.GetEndPoint(1) - curve.GetEndPoint(0)).Normalize();
-
-                if (Math.Abs(direction.Z) < 1e-6)
+                for (int j = i + 1; j < vertices.Count; j++)
                 {
-                    double length = curve.Length;
-                    if (length > maxLength)
+                    XYZ p1 = vertices[i];
+                    XYZ p2 = vertices[j];
+
+                    if (flat)
                     {
-                        maxLength = length;
-                        longest = curve;
+                        p1 = new XYZ(p1.X, p1.Y, 0);
+                        p2 = new XYZ(p2.X, p2.Y, 0);
+                    }
+
+                    double distance = p1.DistanceTo(p2);
+                    if (distance > maxDistance)
+                    {
+                        maxDistance = distance;
+                        longestLine = Line.CreateBound(p1, p2);
                     }
                 }
             }
 
-            if (longest is not Line line) return null;
-
-            XYZ p0 = line.GetEndPoint(0);
-            XYZ p1 = line.GetEndPoint(1);
-
-            if (flat)
-            {
-                p0 = new XYZ(p0.X, p0.Y, 0);
-                p1 = new XYZ(p1.X, p1.Y, 0);
-            }
-
-            return Line.CreateBound(p0, p1);
+            return longestLine;
         }
-
 
         public static Face[] FilterTopoFaces(Document doc, ElementId toposolidId, out Toposolid toposolid)
         {
@@ -419,185 +412,209 @@ namespace GvcRevitPlugins.Shared.Utils
 
             return null;
         }
-    }
 
-    public static class Draw
-    {
-        public static List<ModelCurve> modelCurves = new List<ModelCurve>();
-        public static List<DirectShape> directShapes = new List<DirectShape>();
-
-        public static void Remove(Document doc)
+        public static Line ProjectCurveToZ0(Curve curve)
         {
-            using (Transaction tx = new Transaction(doc, "Remover curvas e formas"))
-            {
-                tx.Start();
-
-                foreach (ModelCurve curve in modelCurves)
-                    doc.Delete(curve.Id);
-
-                foreach (DirectShape shape in directShapes)
-                    doc.Delete(shape.Id);
-
-                tx.Commit();
-            }
-
-            modelCurves.Clear();
-            directShapes.Clear();
+            var p0 = curve.GetEndPoint(0);
+            var p1 = curve.GetEndPoint(1);
+            return Line.CreateBound(
+                new XYZ(p0.X, p0.Y, 0),
+                new XYZ(p1.X, p1.Y, 0)
+            );
         }
 
-        public static void Remove<T>(Document doc, T item)
+        public static class Draw
         {
-            Remove<T>(doc, new List<T> { item });
-        }
+            public static List<ModelCurve> modelCurves = new List<ModelCurve>();
+            public static List<DirectShape> directShapes = new List<DirectShape>();
 
-        public static void Remove<T>(Document doc, IEnumerable<T> items)
-        {
-            using (Transaction tx = new Transaction(doc, "Remover elementos"))
+            public static void Remove(Document doc)
             {
-                tx.Start();
-
-                foreach (T item in items)
+                using (Transaction tx = new Transaction(doc, "Remover curvas e formas"))
                 {
-                    if (item is Element element)
-                        doc.Delete(element.Id);
+                    tx.Start();
 
-                    else if (item is ElementId id)
-                        doc.Delete(id);
+                    foreach (ModelCurve curve in modelCurves)
+                        doc.Delete(curve.Id);
+
+                    foreach (DirectShape shape in directShapes)
+                        doc.Delete(shape.Id);
+
+                    tx.Commit();
                 }
 
-                tx.Commit();
+                modelCurves.Clear();
+                directShapes.Clear();
             }
-        }
 
-        public static void _XYZ(Document doc, IEnumerable<XYZ> p, double size = 0.5)
-        {
-            foreach (XYZ point in p)
-                _XYZ(doc, point, size);
-        }
-
-        public static void _XYZ(Document doc, XYZ p, double size = 0.5)
-        {
-            if (!doc.IsModifiable)
+            public static void Remove<T>(Document doc, T item)
             {
-                using (Transaction transaction = new Transaction(doc, "Draw XYZ Point"))
+                Remove<T>(doc, new List<T> { item });
+            }
+
+            public static void Remove<T>(Document doc, IEnumerable<T> items)
+            {
+                using (Transaction tx = new Transaction(doc, "Remover elementos"))
                 {
-                    transaction.Start();
+                    tx.Start();
 
-                    Execute();
+                    foreach (T item in items)
+                    {
+                        if (item is Element element)
+                            doc.Delete(element.Id);
 
-                    transaction.Commit();
+                        else if (item is ElementId id)
+                            doc.Delete(id);
+                    }
+
+                    tx.Commit();
                 }
-                return;
             }
 
-            Execute();
-
-            void Execute()
+            public static void _XYZ(Document doc, IEnumerable<XYZ> p, double size = 0.5)
             {
-                double radius = size;
-
-                Arc arc = Arc.Create(p + new XYZ(0, 0, -radius), p + new XYZ(0, 0, radius), p + new XYZ(radius, 0, 0));
-
-                Line linha1 = Line.CreateBound(arc.GetEndPoint(1), arc.GetEndPoint(0));
-
-                CurveLoop profile = CurveLoop.Create(new List<Curve> { arc, linha1 });
-
-                Autodesk.Revit.DB.Frame eixo = new Autodesk.Revit.DB.Frame(
-                    p,
-                    XYZ.BasisX,
-                    XYZ.BasisY,
-                    XYZ.BasisZ
-                );
-
-                Solid sphere = GeometryCreationUtilities.CreateRevolvedGeometry(
-                    eixo,
-                    new List<CurveLoop> { profile },
-                    0,
-                    2 * Math.PI
-                );
-
-                DirectShape shape = DirectShape.CreateElement(doc, new ElementId(BuiltInCategory.OST_GenericModel));
-                shape.SetShape(new List<GeometryObject> { sphere });
-                shape.Name = "Sphere at " + p.ToString();
-
-                directShapes.Add(shape);
+                foreach (XYZ point in p)
+                    _XYZ(doc, point, size);
             }
-        }
 
-        public static void _Curve(Document doc, IEnumerable<Curve> c)
-        {
-            foreach (Curve curve in c)
-                _Curve(doc, curve);
-        }
-
-        public static void _Curve(Document doc, Curve curve)
-        {
-            if (!doc.IsModifiable)
-
-                using (Transaction transaction = new Transaction(doc, "Draw Curve"))
+            public static void _XYZ(Document doc, XYZ p, double size = 0.5)
+            {
+                if (!doc.IsModifiable)
                 {
-                    transaction.Start();
+                    using (Transaction transaction = new Transaction(doc, "Draw XYZ Point"))
+                    {
+                        transaction.Start();
+
+                        Execute();
+
+                        transaction.Commit();
+                    }
+                    return;
+                }
+
+                Execute();
+
+                void Execute()
+                {
+                    double radius = size;
+
+                    Arc arc = Arc.Create(p + new XYZ(0, 0, -radius), p + new XYZ(0, 0, radius), p + new XYZ(radius, 0, 0));
+
+                    Line linha1 = Line.CreateBound(arc.GetEndPoint(1), arc.GetEndPoint(0));
+
+                    CurveLoop profile = CurveLoop.Create(new List<Curve> { arc, linha1 });
+
+                    Autodesk.Revit.DB.Frame eixo = new Autodesk.Revit.DB.Frame(
+                        p,
+                        XYZ.BasisX,
+                        XYZ.BasisY,
+                        XYZ.BasisZ
+                    );
+
+                    Solid sphere = GeometryCreationUtilities.CreateRevolvedGeometry(
+                        eixo,
+                        new List<CurveLoop> { profile },
+                        0,
+                        2 * Math.PI
+                    );
+
+                    DirectShape shape = DirectShape.CreateElement(doc, new ElementId(BuiltInCategory.OST_GenericModel));
+                    shape.SetShape(new List<GeometryObject> { sphere });
+                    shape.Name = "Sphere at " + p.ToString();
+
+                    directShapes.Add(shape);
+                }
+            }
+
+            public static void _Curve(Document doc, IEnumerable<Curve> c)
+            {
+                foreach (Curve curve in c)
+                    _Curve(doc, curve);
+            }
+
+            public static void _Curve(Document doc, Curve curve)
+            {
+                if (!doc.IsModifiable)
+
+                    using (Transaction transaction = new Transaction(doc, "Draw Curve"))
+                    {
+                        transaction.Start();
+                        try
+                        {
+                            Execute();
+                        }
+                        catch { }
+                        transaction.Commit();
+                    }
+
+                else
+                {
                     try
                     {
                         Execute();
-                    } catch { }
-                    transaction.Commit();
+                    }
+                    catch { }
                 }
 
-            else
-            {
-                try
+                void Execute()
                 {
-                    Execute();
+                    Curve boundCurve = ToBound(curve);
+
+                    Plane plane = GetPlane(boundCurve);
+                    SketchPlane sketchPlane = SketchPlane.Create(doc, plane);
+                    doc.Create.NewModelCurve(boundCurve, sketchPlane);
                 }
-                catch { }
-            }
 
-            void Execute()
-            {
-                Curve boundCurve = ToBound(curve);
-
-                Plane plane = GetPlane(boundCurve);
-                SketchPlane sketchPlane = SketchPlane.Create(doc, plane);
-                doc.Create.NewModelCurve(boundCurve, sketchPlane);
-            }
-
-            Plane GetPlane(Curve curve)
-            {
-                XYZ p0 = curve.GetEndPoint(0);
-                XYZ p1 = curve.GetEndPoint(1);
-                XYZ direction = (p1 - p0).Normalize();
-
-                XYZ normal;
-                if (direction.CrossProduct(XYZ.BasisZ).IsZeroLength())
-                    normal = XYZ.BasisX;
-
-                else
-                    normal = direction.CrossProduct(XYZ.BasisZ).Normalize();
-
-                XYZ yVector = normal.CrossProduct(direction).Normalize();
-
-                return Plane.CreateByOriginAndBasis(p0, direction, yVector);
-            }
-
-            Curve ToBound(Curve curve)
-            {
-                if (curve.IsBound)
-                    return curve;
-
-                if (curve is Line line)
+                Plane GetPlane(Curve curve)
                 {
-                    XYZ origin = line.Origin;
-                    XYZ dir = line.Direction;
+                    XYZ p0 = curve.GetEndPoint(0);
+                    XYZ p1 = curve.GetEndPoint(1);
+                    XYZ direction = (p1 - p0).Normalize();
 
-                    double length = 1000;
-                    XYZ p0 = origin - dir * (length / 2);
-                    XYZ p1 = origin + dir * (length / 2);
+                    XYZ normal;
+                    if (direction.CrossProduct(XYZ.BasisZ).IsZeroLength())
+                        normal = XYZ.BasisX;
 
-                    return Line.CreateBound(p0, p1);
+                    else
+                        normal = direction.CrossProduct(XYZ.BasisZ).Normalize();
+
+                    XYZ yVector = normal.CrossProduct(direction).Normalize();
+
+                    return Plane.CreateByOriginAndBasis(p0, direction, yVector);
                 }
-                else
-                    throw new ArgumentException("Curve type not supported for unbound conversion.");
+
+                Curve ToBound(Curve curve)
+                {
+                    if (curve.IsBound)
+                        return curve;
+
+                    if (curve is Line line)
+                    {
+                        XYZ origin = line.Origin;
+                        XYZ dir = line.Direction;
+
+                        double length = 1000;
+                        XYZ p0 = origin - dir * (length / 2);
+                        XYZ p1 = origin + dir * (length / 2);
+
+                        return Line.CreateBound(p0, p1);
+                    }
+                    else
+                        throw new ArgumentException("Curve type not supported for unbound conversion.");
+                }
+            }
+        }
+
+        public class XYZComparer : IEqualityComparer<XYZ>
+        {
+            public bool Equals(XYZ a, XYZ b)
+            {
+                return a.IsAlmostEqualTo(b);
+            }
+
+            public int GetHashCode(XYZ obj)
+            {
+                return obj.X.GetHashCode() ^ obj.Y.GetHashCode() ^ obj.Z.GetHashCode();
             }
         }
     }

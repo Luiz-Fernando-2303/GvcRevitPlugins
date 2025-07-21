@@ -1,12 +1,8 @@
 ﻿using Autodesk.Revit.DB;
-using Autodesk.Revit.DB.Architecture;
 using Autodesk.Revit.UI;
-using Autodesk.Revit.UI.Selection;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 using utils = GvcRevitPlugins.Shared.Utils;
 
@@ -25,35 +21,72 @@ namespace GvcRevitPlugins.TerrainCheck
         public XYZ[] ProjectedPoints { get; set; }
         public List<(Face face, XYZ flatPoint, XYZ projectedPoint)> results = new List<(Face face, XYZ flatPoint, XYZ projectedPoint)>();
 
-        public ProjectFaces(UIDocument Uidocument, ElementId elementid, Curve[] lines, int subdivision, double baseElevation)
+        public ProjectFaces(
+            UIDocument Uidocument,
+            ElementId elementid, Curve[] lines,
+            int subdivision,
+            double baseElevation)
         {
             Document = Uidocument.Document;
             Element = Document.GetElement(elementid);
 
-            TaskDialog.Show("Seleção de Terreno", "Por favor, selecione o terreno (Toposolid) para projetar as linhas.");
-            Reference pickedRef = Uidocument.Selection.PickObject(ObjectType.Element, "Selecione o Terreno");
-            if (pickedRef == null) return;
+            Toposolid solid = new FilteredElementCollector(Document)
+                .OfClass(typeof(Toposolid))
+                .Cast<Toposolid>().First();
 
-            Element element = Document.GetElement(pickedRef.ElementId);
-            if (element is Toposolid toposolid)
-            {
-                Toposolid = toposolid;
-            }
-            else
-            {
-                TaskDialog.Show("Erro", "O elemento selecionado não é um Terreno válido.");
-                return;
-            }
-
-            TerrainFaces = utils.XYZUtils.FilterTopoFaces(Document, element.Id, out _);
+            TerrainFaces = utils.XYZUtils.FilterTopoFaces(Document, solid.Id, out _);
             Lines = lines;
             LinesSubdivions = utils.XYZUtils.DivideCurvesEvenly(lines, subdivision);
-            Faces = GetElementFaces();
 
-            if (Faces == null || Faces.Length == 0)
+            if (TerrainCheckApp._thisApp.Store.IntersectionGeometricObject == null)
             {
-                TaskDialog.Show("Erro", "Nenhuma face válida encontrada no elemento selecionado.");
-                return;
+                Faces = GetElementFaces();
+                if (Faces == null || Faces.Length == 0)
+                {
+                    TaskDialog.Show("Erro", "Nenhuma face válida encontrada no elemento selecionado.");
+                    return;
+                }
+            } 
+            else
+            {
+                var dummy = new List<Face>();
+                GeometryObject geometryObject = TerrainCheckApp._thisApp.Store.IntersectionGeometricObject;
+                Mesh mesh = geometryObject as Mesh;
+
+                if (mesh == null || mesh.Vertices.Count < 4) return;
+
+                XYZ p1 = mesh.Vertices[0];
+                XYZ p2 = mesh.Vertices[1];
+                XYZ p3 = mesh.Vertices[2];
+                XYZ p4 = mesh.Vertices[3];
+
+                var faceLoop = new CurveLoop();
+                faceLoop.Append(Line.CreateBound(p1, p2));
+                faceLoop.Append(Line.CreateBound(p2, p3));
+                faceLoop.Append(Line.CreateBound(p3, p4));
+                faceLoop.Append(Line.CreateBound(p4, p1));
+
+                XYZ v1 = p2 - p1;
+                XYZ v2 = p3 - p1;
+                XYZ normal = v1.CrossProduct(v2);
+
+                if (normal.IsZeroLength())
+                {
+                    TaskDialog.Show("Erro", "A normal da face não pôde ser calculada (pontos coplanares ou degenerados).");
+                    return;
+                }
+
+                normal = normal.Normalize();
+
+                Solid extrusion = GeometryCreationUtilities.CreateExtrusionGeometry(
+                    new List<CurveLoop> { faceLoop },
+                    normal,
+                    0.1
+                );
+
+                var faces = extrusion.Faces;
+                dummy.AddRange(faces.OfType<Face>());
+                Faces = dummy.ToArray();
             }
 
             if (TerrainFaces == null || TerrainFaces.Length == 0)
