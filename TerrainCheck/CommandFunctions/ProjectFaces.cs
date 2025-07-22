@@ -202,7 +202,7 @@ namespace GvcRevitPlugins.TerrainCheck
 
                 double average = segmentCount > 0 ? totalDistance / segmentCount : distance;
 
-                if (segmentCount > 0 && distance > 2 * average)
+                if (segmentCount > 0 && distance > 10 * average)
                 {
                     totalDistance = 0;
                     segmentCount = 0;
@@ -291,6 +291,34 @@ namespace GvcRevitPlugins.TerrainCheck
                     }
                 }
             }
+
+            for (int i = faces.Count - 1; i >= 0; i--)
+            {
+                Material material = Document.GetElement(faces[i].MaterialElementId) as Material;
+                if (material == null || !TerrainCheckApp._thisApp.Store.SelectedMaterials.Contains(material.Name))
+                {
+                    faces.RemoveAt(i);
+                }
+            }
+
+            BoundingBoxXYZ bbox = Element.get_BoundingBox(Document.ActiveView);
+            XYZ center = (bbox.Min + bbox.Max) / 2;
+            for (int i = faces.Count - 1; i >= 0; i--)
+            {
+                Face face = faces[i];
+                UV uv = new UV(0.5, 0.5);
+                XYZ faceNormal = face.ComputeNormal(uv).Normalize();
+                XYZ faceOrigin = face.Evaluate(uv);
+
+                XYZ directionToCenter = (center - faceOrigin).Normalize();
+
+                double dot = faceNormal.DotProduct(directionToCenter);
+                if (dot > 0)
+                {
+                    faces.RemoveAt(i);
+                }
+            }
+
 
             return faces.ToArray();
         }

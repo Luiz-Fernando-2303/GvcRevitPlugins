@@ -78,7 +78,7 @@ namespace GvcRevitPlugins.TerrainCheck.Rules
                 //Wall.Create(uidoc.Document, curve, wallType.Id, Level.Id, 30, 0.0, false, false);
             }
 
-            utils.XYZUtils.Draw._Curve(uidoc.Document, allCurvesToDraw);
+            utils.Draw._Curve(uidoc.Document, allCurvesToDraw);
         };
     }
 }

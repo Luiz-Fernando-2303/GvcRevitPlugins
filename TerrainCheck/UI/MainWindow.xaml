@@ -13,8 +13,8 @@
         Width="auto"
         MinWidth="500"
         MaxWidth="500"
-        MinHeight="630"
-        MaxHeight="630"
+        MinHeight="770"
+        MaxHeight="770"
         Background="#FBFBFB"
         d:DataContext="{x:Static local:MainWindowDesignModel.Instance}"
         Topmost="True">
@@ -134,12 +134,6 @@
                                    Foreground="{StaticResource PrimaryColor}">Arrimos</TextBlock>
                     </StackPanel>
 
-                    <materialDesign:PackIcon Kind="Close"
-                                             VerticalAlignment="Center"
-                                             Width="32"
-                                             Height="32"
-                                             Grid.Column="1"
-                                             Grid.Row="0" />
                     <TextBlock Text="Verifica afastamentos de Arrimos"
                                Style="{StaticResource SectionSubtitle}"
                                Margin="0 8 0 0"
@@ -159,7 +153,7 @@
                                Margin="0 4 0 8"
                                Style="{StaticResource SectionSubtitle}"
                                TextWrapping="Wrap">
-        Selecione a linha de divisa e a face da edificação a ser verificada
+        Selecione a divisa e a face ou elemento da edificação a ser verificada
                     </TextBlock>
 
                     <DockPanel Margin="0 0 0 8">
@@ -394,6 +388,45 @@
                                  materialDesign:TextFieldAssist.SuffixText="   "
                                  TextAlignment="Right"
                                  Width="50" />
+                    </DockPanel>
+                    <DockPanel Margin="0 8 0 0">
+                        <TextBlock 
+                            DockPanel.Dock="Left" 
+                            VerticalAlignment="Top" 
+                            Margin="0 4 12 0" 
+                            FontWeight="SemiBold"
+                            FontSize="14"
+                            Foreground="{DynamicResource MaterialDesignBody}"
+                            Text="Filtrar por material" />
+
+                        <Border 
+                            DockPanel.Dock="Right"
+                            Width="220"
+                            Height="130"
+                            Background="{DynamicResource MaterialDesignPaper}"
+                            CornerRadius="6"
+                            Padding="8"
+                            materialDesign:ShadowAssist.ShadowDepth="Depth1">
+
+                            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                <ListBox
+                                    x:Name="MateriaisListBox"
+                                    ItemsSource="{Binding Store.Elementmaterials}"
+                                    SelectionMode="Multiple"
+                                    BorderThickness="0"
+                                    Background="Transparent"
+                                    Foreground="{DynamicResource MaterialDesignBody}"
+                                    FontSize="13"
+                                    ItemContainerStyle="{StaticResource MaterialDesignListBoxItem}" 
+                                    SelectionChanged="MateriaisListBox_SelectionChanged">
+                                    <ListBox.ItemTemplate>
+                                        <DataTemplate>
+                                            <TextBlock Text="{Binding}" Padding="4 2" />
+                                        </DataTemplate>
+                                    </ListBox.ItemTemplate>
+                                </ListBox>
+                            </ScrollViewer>
+                        </Border>
                     </DockPanel>
                 </DockPanel>
 

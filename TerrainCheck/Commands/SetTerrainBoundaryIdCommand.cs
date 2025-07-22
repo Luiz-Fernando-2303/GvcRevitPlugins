@@ -58,8 +58,17 @@ namespace GvcRevitPlugins.TerrainCheck.Commands
                     return;
             }
 
-            TerrainCheckApp._thisApp.Store.TerrainBoundaryIds = elements.Select(e => e.Id).ToList();
-        }
+            if (elements.Count == 0)
+            {
+                TaskDialog.Show("Erro", "Nenhum objeto do tipo selecionado foi encontrado");
+                return;
+            }
 
+            TerrainCheckApp._thisApp.Store.TerrainBoundaryIds = elements.Select(e => e.Id).ToList();
+            TerrainCheckApp._thisApp.Store.selection = new SelectionToLines(
+                TerrainCheckApp._thisApp.Store.TerrainBoundaryIds,
+                doc
+            );
+        }
     }
 }

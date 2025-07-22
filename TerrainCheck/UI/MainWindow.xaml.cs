@@ -32,5 +32,19 @@ namespace GvcRevitPlugins.TerrainCheck.UI
             viewModel = new MainWindowViewModel(null, app);
             DataContext = viewModel;
         }
+
+        private void MateriaisListBox_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
+        {
+            List<string> selection = new List<string>();
+            foreach (var item in MateriaisListBox.SelectedItems)
+            {
+                if (item is string materialName)
+                {
+                    selection.Add(materialName);
+                }
+            }
+
+            TerrainCheckApp._thisApp.Store.SelectedMaterials = selection;
+        }
     }
 }

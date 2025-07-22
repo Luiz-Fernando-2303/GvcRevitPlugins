@@ -4,7 +4,11 @@ using Autodesk.Revit.UI.Selection;
 using GvcRevitPlugins.Shared.App;
 using GvcRevitPlugins.Shared.Commands;
 using Revit.Async;
+using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
+
+using utils = GvcRevitPlugins.Shared.Utils;
 
 namespace GvcRevitPlugins.TerrainCheck.Commands
 {
@@ -34,8 +38,22 @@ namespace GvcRevitPlugins.TerrainCheck.Commands
             Reference reference = uidoc.Selection.PickObject(objectType, $"Select the verification target ({selectionType})");
             if (reference == null) return;
 
-            TerrainCheckApp._thisApp.Store.IntersectionElementId = reference.ElementId;
+            // Clear previous selection data
             TerrainCheckApp._thisApp.Store.IntersectionGeometricObject = null;
+            TerrainCheckApp._thisApp.Store.Elementmaterials = null;
+
+            // Set the element 
+            TerrainCheckApp._thisApp.Store.IntersectionElementId = reference.ElementId;
+            TerrainCheckApp._thisApp.Store.Element = doc.GetElement(reference.ElementId);
+
+            // Set the material list
+            List<Material> elementMaterials = utils.ElementUtils.GetElementMaterials(
+                doc,
+                TerrainCheckApp._thisApp.Store.Element).ToList();
+            TerrainCheckApp._thisApp.Store.Elementmaterials = elementMaterials
+                                                            .Select(m => m.Name)
+                                                            .Distinct()
+                                                            .ToList();
 
             if (objectType != ObjectType.Element)
             {

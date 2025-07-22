@@ -9,6 +9,20 @@ namespace GvcRevitPlugins.TerrainCheck
         public ElementId IntersectionElementId { get; set; }
         public GeometryObject IntersectionGeometricObject { get; set; }
         public Transform ElementTransform { get; set; }
+        public Element Element { get; set; }
+        public SelectionToLines selection { get; set; }
+        private List<string> _allowedMaterials = new List<string>();
+        public List<string> Elementmaterials
+        {
+            get => _allowedMaterials;
+            set
+            {
+                _allowedMaterials = value;
+                OnPropertyChanged();
+            }
+        }
+
+        public List<string> SelectedMaterials { get; set; }
         public List<ElementId> TerrainBoundaryIds { get; set; }
         public int SubdivisionLevel { get; set; } = 10;
 
