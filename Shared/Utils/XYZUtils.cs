@@ -8,6 +8,11 @@ namespace GvcRevitPlugins.Shared.Utils
 {
     public static class XYZUtils
     {
+        public static double UpOrDown(XYZ A, XYZ B)
+        {
+            return A.Z < B.Z ? 2.5 : 1.5;
+        }
+
         public static XYZ FaceNormal(Face face, out UV surfaceUV)
         {
             surfaceUV = new UV();
@@ -25,18 +30,19 @@ namespace GvcRevitPlugins.Shared.Utils
             return faceNormal;
         }
 
-        public static List<XYZ> DivideCurvesEvenly(IEnumerable<Curve> boundaryPath, int subdivisions)
+        public static List<XYZ> DivideCurvesEvenly(IEnumerable<Curve> boundaryPath, double segmentLength)
         {
-            if (subdivisions < 2) return null;
+            if (segmentLength <= 0) return null;
+            segmentLength = (segmentLength / 10) / 3;
 
             var curves = boundaryPath.Where(c => c.IsBound && c.Length > 0).ToList();
             double totalLength = curves.Sum(c => c.Length);
             if (totalLength <= 0) return null;
 
-            double segmentLength = totalLength / subdivisions;
-            List<XYZ> points = new();
+            int subdivisions = (int)Math.Floor(totalLength / segmentLength);
+            if (subdivisions < 1) return new List<XYZ> { curves.First().GetEndPoint(0) };
 
-            double targetLength = 0;
+            List<XYZ> points = new();
             double accumulatedLength = 0;
             int currentCurveIndex = 0;
 
@@ -44,20 +50,20 @@ namespace GvcRevitPlugins.Shared.Utils
             double currentCurveStart = currentCurve.GetEndParameter(0);
             double currentCurveEnd = currentCurve.GetEndParameter(1);
 
-            points.Add(currentCurve.GetEndPoint(0));
+            points.Add(currentCurve.GetEndPoint(0)); // ponto inicial
 
             try
             {
                 for (int i = 1; i <= subdivisions; i++)
                 {
-                    targetLength = segmentLength * i;
+                    double targetLength = segmentLength * i;
 
                     while (accumulatedLength + currentCurve.Length < targetLength)
                     {
                         accumulatedLength += currentCurve.Length;
                         currentCurveIndex++;
 
-                        if (currentCurveIndex > curves.Count)
+                        if (currentCurveIndex >= curves.Count)
                             return points;
 
                         currentCurve = curves[currentCurveIndex];
@@ -67,14 +73,16 @@ namespace GvcRevitPlugins.Shared.Utils
 
                     double remaining = targetLength - accumulatedLength;
                     double fraction = remaining / currentCurve.Length;
-
                     double param = currentCurveStart + fraction * (currentCurveEnd - currentCurveStart);
-                    XYZ pt = currentCurve.Evaluate(param, false);
 
+                    XYZ pt = currentCurve.Evaluate(param, false);
                     points.Add(pt);
                 }
             }
-            catch { }
+            catch
+            {
+                // Erros silenciosos (pode-se logar, se desejado)
+            }
 
             return points;
         }
@@ -346,7 +354,7 @@ namespace GvcRevitPlugins.Shared.Utils
             foreach (XYZ point in p)
                 _XYZ(doc, point, size);
         }
-
+ 
         public static void _XYZ(Document doc, XYZ p, double size = 0.5)
         {
             if (!doc.IsModifiable)

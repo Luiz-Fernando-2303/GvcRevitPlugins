@@ -47,13 +47,8 @@ namespace GvcRevitPlugins.TerrainCheck.Commands
             TerrainCheckApp._thisApp.Store.Element = doc.GetElement(reference.ElementId);
 
             // Set the material list
-            List<Material> elementMaterials = utils.ElementUtils.GetElementMaterials(
-                doc,
-                TerrainCheckApp._thisApp.Store.Element).ToList();
-            TerrainCheckApp._thisApp.Store.Elementmaterials = elementMaterials
-                                                            .Select(m => m.Name)
-                                                            .Distinct()
-                                                            .ToList();
+            List<Material> elementMaterials = utils.ElementUtils.GetElementMaterials(doc, TerrainCheckApp._thisApp.Store.Element).ToList();
+            TerrainCheckApp._thisApp.Store.Elementmaterials = elementMaterials.Select(m => m.Name).Distinct().ToList();
 
             if (objectType != ObjectType.Element)
             {

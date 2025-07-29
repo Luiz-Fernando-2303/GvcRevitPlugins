@@ -29,7 +29,7 @@ namespace GvcRevitPlugins.TerrainCheck.Commands
         {
             Reference pickedRef = uidoc.Selection.PickObject(ObjectType.Face, "Selecione uma face de referência da elevação do platô");
 
-            if (pickedRef == null) return double.NegativeInfinity;
+            if (pickedRef == null) return double.NegativeInfinity; 
 
             Element element = uidoc.Document.GetElement(pickedRef.ElementId);
             GeometryObject geoObject = element.GetGeometryObjectFromReference(pickedRef);

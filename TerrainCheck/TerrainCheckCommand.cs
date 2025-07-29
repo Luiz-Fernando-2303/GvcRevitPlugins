@@ -1,16 +1,9 @@
 ﻿using Autodesk.Revit.DB;
-using Autodesk.Revit.DB.Architecture;
 using Autodesk.Revit.UI;
-using GvcRevitPlugins.TerrainCheck.Rules;
 using System;
-using System.Collections.Generic;
 using System.Linq;
-using utils = GvcRevitPlugins.Shared.Utils;
 
-// Tipo de selecao
-// altura previa do plato
-// Tipo de objeto de teste
-// Remopver ou atualizar parametros da interface
+// Substituir modelo generico por painel aovelar pre fabricado (cassol)
 
 namespace GvcRevitPlugins.TerrainCheck
 {

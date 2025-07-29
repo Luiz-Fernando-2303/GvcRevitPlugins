@@ -13,8 +13,8 @@
         Width="auto"
         MinWidth="500"
         MaxWidth="500"
-        MinHeight="770"
-        MaxHeight="770"
+        MinHeight="700"
+        MaxHeight="700"
         Background="#FBFBFB"
         d:DataContext="{x:Static local:MainWindowDesignModel.Instance}"
         Topmost="True">
@@ -131,15 +131,15 @@
                                    VerticalAlignment="Center"
                                    Margin="0 5"
                                    FontFamily="Segoe UI Semibold"
-                                   Foreground="{StaticResource PrimaryColor}">Arrimos</TextBlock>
+                                   Foreground="{StaticResource PrimaryColor}">Afastamento caixa</TextBlock>
                     </StackPanel>
 
-                    <TextBlock Text="Verifica afastamentos de Arrimos"
+                    <TextBlock
                                Style="{StaticResource SectionSubtitle}"
                                Margin="0 8 0 0"
                                Grid.Column="0"
                                Grid.ColumnSpan="2"
-                               Grid.Row="1" />
+                               Grid.Row="1" ><Run Language="pt-br" Text="Verifica pontos de afastamento "/></TextBlock>
                 </Grid>
 
                 <Separator Grid.Row="1"
@@ -153,7 +153,7 @@
                                Margin="0 4 0 8"
                                Style="{StaticResource SectionSubtitle}"
                                TextWrapping="Wrap">
-        Selecione a divisa e a face ou elemento da edificação a ser verificada
+                            Selecione a divisa e a face ou elemento da edificação a ser verificada
                     </TextBlock>
 
                     <DockPanel Margin="0 0 0 8">
@@ -355,40 +355,28 @@
                                  Width="50" />
                     </DockPanel>
 
-                    <DockPanel Margin="0 0 0 0">
-                        <TextBlock DockPanel.Dock="Left">Altura do Arrimo</TextBlock>
-
-                        <TextBox Text="{Binding Store.TerrainCheckStrucWallHeight, UpdateSourceTrigger=PropertyChanged}"
-                                 VerticalContentAlignment="Center"
-                                 DockPanel.Dock="Right"
-                                 HorizontalAlignment="Right"
-                                 materialDesign:TextFieldAssist.SuffixText="m"
-                                 TextAlignment="Right"
-                                 Width="50" />
-                    </DockPanel>
-
                     <DockPanel Margin="0 8 0 0">
-                        <TextBlock DockPanel.Dock="Left">Distância Mínima</TextBlock>
+                        <TextBlock DockPanel.Dock="Left">
+                            <Run Language="pt-br" Text="Tamanho dos segmentos"/>
+                        </TextBlock>
 
-                        <TextBox Text="{Binding Store.MinimumDistance, UpdateSourceTrigger=PropertyChanged}"
-                                 VerticalContentAlignment="Center"
-                                 DockPanel.Dock="Right"
-                                 HorizontalAlignment="Right"
-                                 materialDesign:TextFieldAssist.SuffixText="m"
-                                 TextAlignment="Right"
-                                 Width="50" />
-                    </DockPanel>
-                    <DockPanel Margin="0 8 0 0">
-                        <TextBlock DockPanel.Dock="Left">Nível de Divisão</TextBlock>
+                        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center" HorizontalAlignment="Right">
+                            <Slider Minimum="30" Maximum="100"
+                            Value="{Binding Store.SubdivisionLevel, UpdateSourceTrigger=PropertyChanged, Mode=TwoWay}"
+                            Width="150"
+                            TickFrequency="10"
+                            IsSnapToTickEnabled="True"
+                            VerticalAlignment="Center"/>            
 
-                        <TextBox Text="{Binding Store.SubdivisionLevel, UpdateSourceTrigger=PropertyChanged}"
-                                 VerticalContentAlignment="Center"
-                                 DockPanel.Dock="Right"
-                                 HorizontalAlignment="Right"
-                                 materialDesign:TextFieldAssist.SuffixText="   "
-                                 TextAlignment="Right"
-                                 Width="50" />
+                            <TextBox Text="{Binding Store.SubdivisionLevel, UpdateSourceTrigger=PropertyChanged, Mode=TwoWay}"
+                            VerticalContentAlignment="Center"
+                            HorizontalAlignment="Right"
+                            materialDesign:TextFieldAssist.SuffixText="cm"
+                            TextAlignment="Right"
+                            Width="50" />
+                        </StackPanel>
                     </DockPanel>
+
                     <DockPanel Margin="0 8 0 0">
                         <TextBlock 
                             DockPanel.Dock="Left" 

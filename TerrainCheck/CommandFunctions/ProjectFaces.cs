@@ -8,6 +8,61 @@ using utils = GvcRevitPlugins.Shared.Utils;
 
 namespace GvcRevitPlugins.TerrainCheck
 {
+    /// <summary>
+    /// Resultado da projeção de um ponto em uma face do terreno.
+    /// </summary>
+    public class ProjectionResult
+    {
+        /// <summary>
+        /// Face onde o ponto foi projetado.
+        /// </summary>
+        public Face Face { get; set; }
+
+        /// <summary>
+        /// Ponto na divisa projetado em altura zero (plano horizontal).
+        /// </summary>
+        public XYZ FlatPoint { get; set; }
+
+        /// <summary>
+        /// Ponto na divisa projetado no terreno de referencia (altura do terreno).
+        /// </summary>
+        public XYZ ProjectedPoint { get; set; }
+
+        public ProjectionResult(Face face, XYZ flatPoint, XYZ projectedPoint)
+        {
+            Face = face;
+            FlatPoint = flatPoint;
+            ProjectedPoint = projectedPoint;
+        }
+    }
+
+    /// <summary>
+    /// Resultado da projeção de uma linha inclinada sobre o terreno, incluindo o ponto projetado e a altura da parede.
+    /// </summary>
+    public class WallResult_
+    {
+        /// <summary>
+        /// Localização do ponto projetado sobre o terreno.
+        /// </summary>
+        public XYZ point { get; set; }
+
+        /// <summary>
+        /// Altura da parede a ser criada a partir do ponto projetado.
+        /// </summary>  
+        public double wallHeight { get; set; }
+
+        /// <summary>
+        /// Localização da parade na vista
+        /// </summary>
+        public Curve wallCurve { get; set; }
+
+        public WallResult_(XYZ point, double wallHeight)
+        {
+            this.point = point;
+            this.wallHeight = wallHeight;
+        }
+    }
+
     public class ProjectFaces
     {
         Document Document { get; set; }
@@ -15,16 +70,16 @@ namespace GvcRevitPlugins.TerrainCheck
         Curve[] Lines { get; set; }
         Face[] Faces { get; set; }
         List<XYZ> LinesSubdivions { get; set; }
-        Toposolid Toposolid { get; set; }
         Face[] TerrainFaces { get; set; }
 
         public XYZ[] ProjectedPoints { get; set; }
-        public List<(Face face, XYZ flatPoint, XYZ projectedPoint)> results = new List<(Face face, XYZ flatPoint, XYZ projectedPoint)>();
+        public List<ProjectionResult> results = new List<ProjectionResult>();
 
         public ProjectFaces(
             UIDocument Uidocument,
-            ElementId elementid, Curve[] lines,
-            int subdivision,
+            ElementId elementid, 
+            Curve[] lines,
+            double subdivision,
             double baseElevation)
         {
             Document = Uidocument.Document;
@@ -49,44 +104,7 @@ namespace GvcRevitPlugins.TerrainCheck
             } 
             else
             {
-                var dummy = new List<Face>();
-                GeometryObject geometryObject = TerrainCheckApp._thisApp.Store.IntersectionGeometricObject;
-                Mesh mesh = geometryObject as Mesh;
-
-                if (mesh == null || mesh.Vertices.Count < 4) return;
-
-                XYZ p1 = mesh.Vertices[0];
-                XYZ p2 = mesh.Vertices[1];
-                XYZ p3 = mesh.Vertices[2];
-                XYZ p4 = mesh.Vertices[3];
-
-                var faceLoop = new CurveLoop();
-                faceLoop.Append(Line.CreateBound(p1, p2));
-                faceLoop.Append(Line.CreateBound(p2, p3));
-                faceLoop.Append(Line.CreateBound(p3, p4));
-                faceLoop.Append(Line.CreateBound(p4, p1));
-
-                XYZ v1 = p2 - p1;
-                XYZ v2 = p3 - p1;
-                XYZ normal = v1.CrossProduct(v2);
-
-                if (normal.IsZeroLength())
-                {
-                    TaskDialog.Show("Erro", "A normal da face não pôde ser calculada (pontos coplanares ou degenerados).");
-                    return;
-                }
-
-                normal = normal.Normalize();
-
-                Solid extrusion = GeometryCreationUtilities.CreateExtrusionGeometry(
-                    new List<CurveLoop> { faceLoop },
-                    normal,
-                    0.1
-                );
-
-                var faces = extrusion.Faces;
-                dummy.AddRange(faces.OfType<Face>());
-                Faces = dummy.ToArray();
+                CreateDummyFaces();
             }
 
             if (TerrainFaces == null || TerrainFaces.Length == 0)
@@ -102,18 +120,31 @@ namespace GvcRevitPlugins.TerrainCheck
             CreateExtrudedWallFromCurves(connectedSlopePoints);
         }
 
-        private XYZ[] SlopePoints(double baseElevation)
+        /// <summary>
+        /// Calcula os pontos projetados sobre o terreno a partir dos resultados de interseção com as faces.<br/>
+        /// Etapas executadas para cada resultado:<br/>
+        /// 1. Obtém a aresta horizontal mais longa da face na altura zero (<c>baseFlatLine</c>) e na altura real (<c>baseLine</c>).<br/>
+        /// 2. Calcula a normal da face (<c>normal</c>).<br/>
+        /// 3. Projeta o ponto base (<c>flatPoint</c>) sobre a linha da base em altura zero para obter a interseção (<c>intersection</c>).<br/>
+        /// 4. Transfere a interseção para a altura da base real da face (<c>transformedIntersection</c>).<br/>
+        /// 5. Calcula os deslocamentos vertical (<c>verticalOffset</c>) e de inclinação (<c>inclinationOffset</c>), considerando altura da parede e distância mínima.<br/>
+        /// 6. Move o ponto transformado na direção da normal da face, aplicando o deslocamento total.<br/>
+        /// 7. Projeta esse ponto final sobre a topografia e o adiciona à lista de resultados.<br/>
+        /// </summary>
+        private WallResult_[] SlopePoints(double baseElevation)
         {
-            List<XYZ> resultPoints = new();
+            List<WallResult_> resultPoints = new(); 
 
             foreach (var result in results)
             {
-                Face face = result.face;
-                XYZ projectedPoint = result.projectedPoint;
-                XYZ flatPoint = result.flatPoint;
+                Face face = result.Face;
+                XYZ projectedPoint = result.ProjectedPoint;
+                XYZ flatPoint = result.FlatPoint;
 
                 Line baseFlatLine = utils.XYZUtils.GetLongestHorizontalEdge(face);
                 Line baseLine = utils.XYZUtils.GetLongestHorizontalEdge(face, false);
+                XYZ facePoint = utils.XYZUtils.ProjectPointOntoTopography(TerrainFaces, face.Triangulate().Vertices.First());
+
                 XYZ normal = utils.XYZUtils.FaceNormal(face, out _);
                 if (normal == null) continue;
 
@@ -125,8 +156,11 @@ namespace GvcRevitPlugins.TerrainCheck
                 XYZ intersection = intersectionArray.get_Item(0).XYZPoint;
                 XYZ transformedIntersection = new XYZ(intersection.X, intersection.Y, baseLine.GetEndPoint(0).Z);
 
-                double wallHeight = UnitUtils.ConvertToInternalUnits(TerrainCheckApp._thisApp.Store.TerrainCheckStrucWallHeight, UnitTypeId.Meters);
-                double minDistance = UnitUtils.ConvertToInternalUnits(TerrainCheckApp._thisApp.Store.MinimumDistance, UnitTypeId.Meters);
+                double wallHeight = UnitUtils.ConvertToInternalUnits(3, UnitTypeId.Meters);
+
+                double minDistance = utils.XYZUtils.UpOrDown(facePoint, projectedPoint);
+                minDistance = UnitUtils.ConvertToInternalUnits(utils.XYZUtils.UpOrDown(facePoint, projectedPoint), UnitTypeId.Meters);
+
                 if (wallHeight > minDistance)
                     minDistance = wallHeight - UnitUtils.ConvertToInternalUnits(1, UnitTypeId.Meters);
 
@@ -134,30 +168,95 @@ namespace GvcRevitPlugins.TerrainCheck
                 verticalOffset = Math.Max(verticalOffset, minDistance);
 
                 double inclinationOffset = Math.Abs(transformedIntersection.Z - projectedPoint.Z) / 2;
-
                 double totalOffset = verticalOffset + inclinationOffset;
 
                 XYZ movedPoint = utils.XYZUtils.GetEndPoint(transformedIntersection, normal, totalOffset);
-
                 XYZ finalPoint = utils.XYZUtils.ProjectPointOntoTopography(TerrainFaces, movedPoint);
-                resultPoints.Add(finalPoint);
+                
+                WallResult_ slopeResult = new WallResult_(finalPoint, wallHeight);
+
+                if (!IsInvadingElement(slopeResult))
+                {
+                    resultPoints.Add(slopeResult);
+                    continue;
+                }
+                utils.Draw._XYZ(Document, slopeResult.point);
             }
 
             return resultPoints.ToArray();
         }
 
-        private void CreateExtrudedWallFromCurves(Curve[] curves)
+        private void CreateDummyFaces()
         {
-            using (var tx = new Transaction(Document, "Criar forma 3D inclinada"))
+            var dummy = new List<Face>();
+            GeometryObject geometryObject = TerrainCheckApp._thisApp.Store.IntersectionGeometricObject;
+            Mesh mesh = geometryObject as Mesh;
+
+            if (mesh == null || mesh.Vertices.Count < 4) return;
+
+            XYZ p1 = mesh.Vertices[0];
+            XYZ p2 = mesh.Vertices[1];
+            XYZ p3 = mesh.Vertices[2];
+            XYZ p4 = mesh.Vertices[3];
+
+            var faceLoop = new CurveLoop();
+            faceLoop.Append(Line.CreateBound(p1, p2));
+            faceLoop.Append(Line.CreateBound(p2, p3));
+            faceLoop.Append(Line.CreateBound(p3, p4));
+            faceLoop.Append(Line.CreateBound(p4, p1));
+
+            XYZ v1 = p2 - p1;
+            XYZ v2 = p3 - p1;
+            XYZ normal = v1.CrossProduct(v2);
+
+            if (normal.IsZeroLength())
+            {
+                TaskDialog.Show("Erro", "A normal da face não pôde ser calculada (pontos coplanares ou degenerados).");
+                return;
+            }
+
+            normal = normal.Normalize();
+
+            Solid extrusion = GeometryCreationUtilities.CreateExtrusionGeometry(
+                new List<CurveLoop> { faceLoop },
+                normal,
+                0.1
+            );
+
+            var faces = extrusion.Faces;
+            dummy.AddRange(faces.OfType<Face>());
+            Faces = dummy.ToArray();
+        }
+
+        private bool IsInvadingElement(WallResult_ result)
+        {
+            BoundingBoxXYZ elementBox = Element.get_BoundingBox(null);
+
+            if (elementBox == null) return false;
+
+            XYZ point = result.point;
+
+            return point.X >= elementBox.Min.X &&
+                   point.Y >= elementBox.Min.Y &&
+                   point.Z >= elementBox.Min.Z &&
+                   point.X <= elementBox.Max.X &&
+                   point.Y <= elementBox.Max.Y &&
+                   point.Z <= elementBox.Max.Z;
+        }
+
+
+        private void CreateExtrudedWallFromCurves(WallResult_[] wallResults)
+        {
+            using (var tx = new Transaction(Document, "Create extrude wall"))
             {
                 tx.Start();
 
-                foreach (var curve in curves)
+                foreach (var wall in wallResults)
                 {
-                    var baseStart = curve.GetEndPoint(0);
-                    var baseEnd = curve.GetEndPoint(1);
+                    var baseStart = wall.wallCurve.GetEndPoint(0);
+                    var baseEnd = wall.wallCurve.GetEndPoint(1);
 
-                    double altura = UnitUtils.ConvertToInternalUnits(TerrainCheckApp._thisApp.Store.TerrainCheckStrucWallHeight, UnitTypeId.Meters); //TODO: seletor da altura
+                    double altura = wall.wallHeight;
 
                     var up = XYZ.BasisZ.Multiply(altura);
 
@@ -185,12 +284,12 @@ namespace GvcRevitPlugins.TerrainCheck
             }
         }
 
-        private Curve[] ConnectPoints(XYZ[] points)
+        private WallResult_[] ConnectPoints(WallResult_[] points)
         {
             if (points == null || points.Length < 2)
-                return Array.Empty<Curve>();
+                return Array.Empty<WallResult_>();
 
-            var curves = new List<Curve>();
+            var curves = new List<WallResult_>();
             double totalDistance = 0;
             int segmentCount = 0;
 
@@ -198,7 +297,7 @@ namespace GvcRevitPlugins.TerrainCheck
             {
                 var prev = points[i - 1];
                 var current = points[i];
-                double distance = prev.DistanceTo(current);
+                double distance = prev.point.DistanceTo(current.point);
 
                 double average = segmentCount > 0 ? totalDistance / segmentCount : distance;
 
@@ -209,7 +308,9 @@ namespace GvcRevitPlugins.TerrainCheck
                 }
                 else if (distance <= 20)
                 {
-                    curves.Add(Line.CreateBound(prev, current));
+                    prev.wallCurve = Line.CreateBound(prev.point, current.point);
+                    curves.Add(prev);
+
                     totalDistance += distance;
                     segmentCount++;
                 }
@@ -247,7 +348,8 @@ namespace GvcRevitPlugins.TerrainCheck
                     if (projected != null)
                     {
                         projectedPoints.Add(projected);
-                        results.Add((face, startPoint, projected));
+                        ProjectionResult projectionResult = new ProjectionResult(face, startPoint, projected);
+                        results.Add(projectionResult);
                         break;
                     }
                 }
@@ -318,7 +420,6 @@ namespace GvcRevitPlugins.TerrainCheck
                     faces.RemoveAt(i);
                 }
             }
-
 
             return faces.ToArray();
         }

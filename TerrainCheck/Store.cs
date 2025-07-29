@@ -24,7 +24,19 @@ namespace GvcRevitPlugins.TerrainCheck
 
         public List<string> SelectedMaterials { get; set; }
         public List<ElementId> TerrainBoundaryIds { get; set; }
-        public int SubdivisionLevel { get; set; } = 10;
+        private double _subdivisionLevel = 30; // valor inicial em cm
+        public double SubdivisionLevel
+        {
+            get => _subdivisionLevel;
+            set
+            {
+                if (_subdivisionLevel != value)
+                {
+                    _subdivisionLevel = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
 
         private double _platformElevation;
         public double PlatformElevation
@@ -34,7 +46,7 @@ namespace GvcRevitPlugins.TerrainCheck
         }
 
         private double _minimumDistance;
-        public double MinimumDistance
+        public double MinimumDistance //TODO: auto calculado 
         {
             get => _minimumDistance;
             set { _minimumDistance = value; OnPropertyChanged(); }
@@ -44,7 +56,7 @@ namespace GvcRevitPlugins.TerrainCheck
         public double TerrainCheckStrucWallHeight
         {
             get => _terrainCheckStrucWallHeight;
-            set { _terrainCheckStrucWallHeight = value; OnPropertyChanged(); }
+            set { _terrainCheckStrucWallHeight = value; OnPropertyChanged(); } //TODO: auto calculado 
         }
 
         private double _terrainCheckCalcDistance;
