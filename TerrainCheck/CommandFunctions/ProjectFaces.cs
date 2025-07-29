@@ -133,7 +133,8 @@ namespace GvcRevitPlugins.TerrainCheck
         /// </summary>
         private WallResult_[] SlopePoints(double baseElevation)
         {
-            List<WallResult_> resultPoints = new(); 
+            List<WallResult_> resultPoints = new();
+            List<XYZ> unprojectedPoints = new();
 
             foreach (var result in results)
             {
@@ -175,12 +176,35 @@ namespace GvcRevitPlugins.TerrainCheck
                 
                 WallResult_ slopeResult = new WallResult_(finalPoint, wallHeight);
 
+                // No Terrain projection
+                if (slopeResult.point == null)
+                {
+                    movedPoint = new XYZ(movedPoint.X, movedPoint.Y, projectedPoint.Z);
+                    unprojectedPoints.Add(movedPoint);
+                    continue;
+                }
+
                 if (!IsInvadingElement(slopeResult))
                 {
                     resultPoints.Add(slopeResult);
                     continue;
                 }
-                utils.Draw._XYZ(Document, slopeResult.point);
+            }
+
+            if (unprojectedPoints.Count > 0)
+            {
+                TaskDialogResult result = TaskDialog.Show(
+                    "Pontos Fora do Sólido",
+                    $"Foram encontrados {unprojectedPoints.Count} ponto(s) fora do topografia.\nDeseja desenhá-los no modelo?",
+                    TaskDialogCommonButtons.Yes | TaskDialogCommonButtons.No);
+
+                if (result == TaskDialogResult.Yes)
+                {
+                    foreach (XYZ point in unprojectedPoints)
+                    {
+                        utils.Draw._XYZ(Document, point, 0.8, new Color(255, 0, 0));
+                    }
+                }
             }
 
             return resultPoints.ToArray();
@@ -219,7 +243,7 @@ namespace GvcRevitPlugins.TerrainCheck
 
             Solid extrusion = GeometryCreationUtilities.CreateExtrusionGeometry(
                 new List<CurveLoop> { faceLoop },
-                normal,
+                normal,  
                 0.1
             );
 
@@ -338,7 +362,8 @@ namespace GvcRevitPlugins.TerrainCheck
 
                     double dot = normal.Normalize().DotProduct(directionToFace);
 
-                    if (dot >= 0) continue;
+                    //if (dot >= 0) 
+                    //    continue;
 
                     Line ray = Line.CreateUnbound(startPoint, normal);
                     var resultSet = horizontalLine?.Intersect(ray, out _);

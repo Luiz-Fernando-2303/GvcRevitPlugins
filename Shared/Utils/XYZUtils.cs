@@ -354,17 +354,15 @@ namespace GvcRevitPlugins.Shared.Utils
             foreach (XYZ point in p)
                 _XYZ(doc, point, size);
         }
- 
-        public static void _XYZ(Document doc, XYZ p, double size = 0.5)
+
+        public static void _XYZ(Document doc, XYZ p, double size = 0.5, Color color = null)
         {
             if (!doc.IsModifiable)
             {
                 using (Transaction transaction = new Transaction(doc, "Draw XYZ Point"))
                 {
                     transaction.Start();
-
                     Execute();
-
                     transaction.Commit();
                 }
                 return;
@@ -375,11 +373,26 @@ namespace GvcRevitPlugins.Shared.Utils
             void Execute()
             {
                 double radius = size;
+                color ??= new Color(255, 255, 255); 
 
+                // Criar ou encontrar material
+                string materialName = $"PointColor_{color.Red}_{color.Green}_{color.Blue}";
+                Material material = new FilteredElementCollector(doc)
+                    .OfClass(typeof(Material))
+                    .Cast<Material>()
+                    .FirstOrDefault(m => m.Name == materialName);
+
+                if (material == null)
+                {
+                    material = (Material)doc.GetElement(Material.Create(doc, materialName));
+                    material.Color = color;
+                    material.Transparency = 0;
+                    material.Shininess = 128;
+                }
+
+                // Criar geometria sólida
                 Arc arc = Arc.Create(p + new XYZ(0, 0, -radius), p + new XYZ(0, 0, radius), p + new XYZ(radius, 0, 0));
-
                 Line linha1 = Line.CreateBound(arc.GetEndPoint(1), arc.GetEndPoint(0));
-
                 CurveLoop profile = CurveLoop.Create(new List<Curve> { arc, linha1 });
 
                 Autodesk.Revit.DB.Frame eixo = new Autodesk.Revit.DB.Frame(
@@ -396,8 +409,42 @@ namespace GvcRevitPlugins.Shared.Utils
                     2 * Math.PI
                 );
 
+                // Converter a geometria sólida em tessellated shape com material
+                TessellatedShapeBuilder tsb = new TessellatedShapeBuilder();
+                tsb.OpenConnectedFaceSet(true);
+
+                foreach (Face face in sphere.Faces)
+                {
+                    Mesh mesh = face.Triangulate();
+
+                    for (int i = 0; i < mesh.NumTriangles; i++)
+                    {
+                        MeshTriangle tri = mesh.get_Triangle(i);
+                        IList<XYZ> triangle = new List<XYZ>
+                        {
+                            tri.get_Vertex(0),
+                            tri.get_Vertex(1),
+                            tri.get_Vertex(2)
+                        };
+
+                        TessellatedFace tFace = new TessellatedFace(triangle, material.Id);
+                        if (tsb.DoesFaceHaveEnoughLoopsAndVertices(tFace))
+                        {
+                            tsb.AddFace(tFace);
+                        }
+                    }
+                }
+
+                tsb.CloseConnectedFaceSet();
+                tsb.Target = TessellatedShapeBuilderTarget.AnyGeometry;
+                tsb.Fallback = TessellatedShapeBuilderFallback.Mesh;
+                tsb.Build();
+
+                GeometryObject geo = tsb.GetBuildResult().GetGeometricalObjects().First();
+
+                // Criar o DirectShape com a geometria colorida
                 DirectShape shape = DirectShape.CreateElement(doc, new ElementId(BuiltInCategory.OST_GenericModel));
-                shape.SetShape(new List<GeometryObject> { sphere });
+                shape.AppendShape(new List<GeometryObject> { geo });
                 shape.Name = "Sphere at " + p.ToString();
 
                 directShapes.Add(shape);
