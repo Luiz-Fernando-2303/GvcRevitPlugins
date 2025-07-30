@@ -55,6 +55,13 @@ namespace GvcRevitPlugins.TerrainCheck.Commands
                 GeometryObject selectedFace = doc.GetElement(reference.ElementId)?.GetGeometryObjectFromReference(reference);
 
                 LocationPoint location = doc.GetElement(reference.ElementId)?.Location as LocationPoint;
+                if (location == null)
+                {
+                    var faceMesh_ = (selectedFace as Face).Triangulate();
+                    TerrainCheckApp._thisApp.Store.IntersectionGeometricObject = faceMesh_;
+                    return;
+                }
+
                 Transform translation = Transform.CreateTranslation(location?.Point ?? XYZ.Zero);
                 Transform rotation = Transform.CreateRotation(XYZ.BasisZ, location.Rotation);
 
@@ -64,3 +71,4 @@ namespace GvcRevitPlugins.TerrainCheck.Commands
         }
     }
 } 
+  

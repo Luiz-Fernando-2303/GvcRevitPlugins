@@ -361,10 +361,10 @@
                         </TextBlock>
 
                         <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center" HorizontalAlignment="Right">
-                            <Slider Minimum="30" Maximum="100"
+                            <Slider Minimum="5" Maximum="100"
                             Value="{Binding Store.SubdivisionLevel, UpdateSourceTrigger=PropertyChanged, Mode=TwoWay}"
                             Width="150"
-                            TickFrequency="10"
+                            TickFrequency="1"
                             IsSnapToTickEnabled="True"
                             VerticalAlignment="Center"/>            
 
@@ -461,5 +461,5 @@
 
             </DockPanel>
         </Grid>
-    </Border>
+    </Border> 
 </Window>

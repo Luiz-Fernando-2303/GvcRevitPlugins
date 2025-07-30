@@ -105,6 +105,11 @@ namespace GvcRevitPlugins.TerrainCheck
             else
             {
                 CreateDummyFaces();
+                if (Faces == null || Faces.Length == 0)
+                {
+                    TaskDialog.Show("Erro", "Nenhuma face válida encontrada no objeto de interseção.");
+                    return;
+                }
             }
 
             if (TerrainFaces == null || TerrainFaces.Length == 0)
@@ -114,9 +119,26 @@ namespace GvcRevitPlugins.TerrainCheck
             }
 
             ProjectLinesToFaces();
+            if (ProjectedPoints == null || ProjectedPoints.Length == 0)
+            {
+                TaskDialog.Show("Erro", "Não foi possivel projetar os pontos da linha de divisa");
+                return;
+            }
 
             var slopePoints = SlopePoints(baseElevation);
+            if (slopePoints == null || slopePoints.Length == 0)
+            {
+                TaskDialog.Show("Erro", "Nenhum resultado encontrado no terreno.");
+                return;
+            }
+
             var connectedSlopePoints = ConnectPoints(slopePoints);
+            if (connectedSlopePoints == null || connectedSlopePoints.Length == 0)
+            {
+                TaskDialog.Show("Erro", "Não foi possivel gerar os resultados finais");
+                return;
+            }
+
             CreateExtrudedWallFromCurves(connectedSlopePoints);
         }
 
@@ -202,7 +224,7 @@ namespace GvcRevitPlugins.TerrainCheck
                 {
                     foreach (XYZ point in unprojectedPoints)
                     {
-                        utils.Draw._XYZ(Document, point, 0.8, new Color(255, 0, 0));
+                        utils.Draw._XYZ(Document, point, 0.8, new Color(255, 165, 0));
                     }
                 }
             }
@@ -255,17 +277,18 @@ namespace GvcRevitPlugins.TerrainCheck
         private bool IsInvadingElement(WallResult_ result)
         {
             BoundingBoxXYZ elementBox = Element.get_BoundingBox(null);
-
             if (elementBox == null) return false;
 
             XYZ point = result.point;
 
-            return point.X >= elementBox.Min.X &&
-                   point.Y >= elementBox.Min.Y &&
-                   point.Z >= elementBox.Min.Z &&
-                   point.X <= elementBox.Max.X &&
-                   point.Y <= elementBox.Max.Y &&
-                   point.Z <= elementBox.Max.Z;
+            double tolerance = UnitUtils.ConvertToInternalUnits(-1, UnitTypeId.Meters);
+
+            return point.X >= elementBox.Min.X - tolerance &&
+                   point.Y >= elementBox.Min.Y - tolerance &&
+                   point.Z >= elementBox.Min.Z - tolerance &&
+                   point.X <= elementBox.Max.X + tolerance &&
+                   point.Y <= elementBox.Max.Y + tolerance &&
+                   point.Z <= elementBox.Max.Z + tolerance;
         }
 
 
@@ -325,7 +348,7 @@ namespace GvcRevitPlugins.TerrainCheck
 
                 double average = segmentCount > 0 ? totalDistance / segmentCount : distance;
 
-                if (segmentCount > 0 && distance > 10 * average)
+                if (segmentCount > 0 && distance > 20 * average)
                 {
                     totalDistance = 0;
                     segmentCount = 0;
@@ -381,7 +404,7 @@ namespace GvcRevitPlugins.TerrainCheck
             }
 
             ProjectedPoints = projectedPoints.Count > 0 ? projectedPoints.ToArray() : Array.Empty<XYZ>();
-        }
+        } 
 
         private Face[] GetElementFaces()
         {

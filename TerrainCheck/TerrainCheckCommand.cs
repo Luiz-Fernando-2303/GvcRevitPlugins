@@ -3,8 +3,6 @@ using Autodesk.Revit.UI;
 using System;
 using System.Linq;
 
-// Substituir modelo generico por painel aovelar pre fabricado (cassol)
-
 namespace GvcRevitPlugins.TerrainCheck
 {
     public static class TerrainCheckCommand
@@ -33,7 +31,7 @@ namespace GvcRevitPlugins.TerrainCheck
 
             if (store.IntersectionElementId == null || store.IntersectionElementId == ElementId.InvalidElementId)
             {
-                TaskDialog.Show("Erro", "Elemento de interseção não foi definido.");
+                TaskDialog.Show("Erro", "Elemento de interseção não foi definido."); 
                 return;
             }
 
@@ -61,7 +59,7 @@ namespace GvcRevitPlugins.TerrainCheck
                 store.selection.Lines,
                 store.SubdivisionLevel,
                 store.PlatformElevation
-            );
+            ); 
         }
     }
 }

@@ -33,7 +33,7 @@ namespace GvcRevitPlugins.TerrainCheck.Commands
 
             string selectionType = TerrainCheckApp._thisApp.Store.BoundarySelectionType;
 
-            switch (selectionType)
+            switch (selectionType) 
             {
                 case "Linha de Divisa":
                     elements = elements
