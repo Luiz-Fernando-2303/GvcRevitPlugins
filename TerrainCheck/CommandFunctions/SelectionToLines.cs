@@ -6,9 +6,16 @@ using System.Linq;
 
 namespace GvcRevitPlugins.TerrainCheck
 {
+    public class LineResult 
+    {
+        public Line line { get; set; }
+        public Element Element { get; set; }
+    }
+
     public class SelectionToLines
     {
         public Curve[]          Lines { get; set; }
+        public List<LineResult> LineResults { get; set; } = new();
         IEnumerable<ElementId>  ElementIds { get; set; }
         IEnumerable<Element>    Elements { get; set; }
         Document                Document_ { get; set; }
@@ -31,65 +38,98 @@ namespace GvcRevitPlugins.TerrainCheck
             {
                 if (element == null) continue;
 
-                // Caso 1: Corrimão (Railing)
+                // Corrimão
                 if (element is Railing railing)
                 {
                     var path = GetRailingPath(railing);
                     if (path != null && path.Length > 0)
                     {
                         horizontalLines.AddRange(path);
+                        LineResults.AddRange(path.Select(line => new LineResult { line = (Line)line, Element = element }));
                     }
                     continue;
                 }
 
-                // Caso 2: Parede (Wall)
-                if (element is Wall wall)
+                // Parede
+                if (element is Wall wall && wall.Location is LocationCurve wallCurve)
                 {
-                    if (wall.Location is LocationCurve locationCurve)
+                    var curve = wallCurve.Curve;
+                    if (curve != null)
                     {
-                        var curve = locationCurve.Curve;
-                        if (curve != null && curve is Line line)
+                        var projectedLine = ProjectCurveToZ0(curve);
+                        if (projectedLine != null)
                         {
-                            var projectedLine = ProjectCurveToZ0(line);
-                            if (projectedLine != null) horizontalLines.Add(projectedLine);
+                            horizontalLines.Add(projectedLine);
+                            LineResults.Add(new LineResult { line = projectedLine, Element = element });
                         }
                     }
                     continue;
                 }
 
-                // Caso 3: Instâncias aninhadas
-                Options options = new Options();
-                options.View = Document_.ActiveView;
-                options.IncludeNonVisibleObjects = true;
+                // Qualquer elemento com LocationCurve (inclusive estrutural)
+                if (element.Location is LocationCurve genericCurve)
+                {
+                    var curve = genericCurve.Curve;
+                    if (curve != null)
+                    {
+                        var projectedLine = ProjectCurveToZ0(curve);
+                        if (projectedLine != null)
+                        {
+                            horizontalLines.Add(projectedLine);
+                            LineResults.Add(new LineResult { line = projectedLine, Element = element });
+                        }
+                    }
+                }
 
-                GeometryElement geomElement = element.get_Geometry(options);
+                // Geometria genérica
+                var options = new Options { View = Document_.ActiveView, IncludeNonVisibleObjects = true };
+                var geomElement = element.get_Geometry(options);
                 if (geomElement == null) continue;
 
-                foreach (GeometryObject geoObj in geomElement)
+                foreach (var geoObj in geomElement)
                 {
                     if (geoObj is GeometryInstance geoInstance)
                     {
-                        foreach (GeometryObject instanceObj in geoInstance.GetInstanceGeometry())
+                        foreach (var instanceObj in geoInstance.GetInstanceGeometry())
                         {
-                            if (instanceObj is Solid instSolid && instSolid.Faces.Size > 0)
+                            if (instanceObj is Solid solid && solid.Faces.Size > 0)
                             {
-                                var line = GetLineFromGeometry(instSolid);
-                                if (line != null) horizontalLines.Add(line);
-                            }
-                            else if (instanceObj is Face instFace)
+                                var line = GetLineFromGeometry(solid);
+                                if (line != null)
+                                {
+                                    horizontalLines.Add(line);
+                                    LineResults.Add(new LineResult { line = line, Element = element });
+                                }
+                                else if (instanceObj is Face face)
+                                {
+                                    var faceLine = GetLineFromFace(face);
+                                    if (faceLine != null)
+                                    {
+                                        horizontalLines.Add(faceLine);
+                                        LineResults.Add(new LineResult { line = faceLine, Element = element });
+                                    }
+                                }
+                                else if (instanceObj is Line rawLine)
+                                {
+                                    var projectedLine = ProjectCurveToZ0(rawLine);
+                                    if (projectedLine != null)
+                                    {
+                                        horizontalLines.Add(projectedLine);
+                                        LineResults.Add(new LineResult { line = projectedLine, Element = element });
+                                    }
+                                }
+                            } else if (instanceObj is Curve curve)
                             {
-                                var faceLine = GetLineFromFace(instFace);
-                                if (faceLine != null) horizontalLines.Add(faceLine);
-                            }
-                            if (instanceObj is Line instline)
-                            {
-                                var line = ProjectCurveToZ0(instline);
-                                if (line != null) horizontalLines.Add(line);
+                                var line = ProjectCurveToZ0(curve);
+                                if (line != null)
+                                {
+                                    horizontalLines.Add(line);
+                                    LineResults.Add(new LineResult { line = line, Element = element });
+                                }
                             }
                         }
                     }
                 }
-
             }
 
             if (horizontalLines.Count == 0)
@@ -128,12 +168,35 @@ namespace GvcRevitPlugins.TerrainCheck
 
         private Line ProjectCurveToZ0(Curve curve)
         {
-            var p0 = curve.GetEndPoint(0);
-            var p1 = curve.GetEndPoint(1);
-            return Line.CreateBound(
-                new XYZ(p0.X, p0.Y, 0),
-                new XYZ(p1.X, p1.Y, 0)
-            );
+            try
+            {
+                var p0 = curve.GetEndPoint(0);
+                var p1 = curve.GetEndPoint(1);
+
+                return Line.CreateBound(
+                    new XYZ(p0.X, p0.Y, 0),
+                    new XYZ(p1.X, p1.Y, 0)
+                );
+            }
+            catch
+            {
+                try
+                {
+                    Line l = curve as Line;
+                    XYZ origin = l.Origin;
+                    XYZ direction = l.Direction;
+                    double length = curve.ApproximateLength; // ou curve.Length se Curve for Line ou Arc
+
+                    XYZ p0 = new XYZ(origin.X, origin.Y, 0);
+                    XYZ p1 = new XYZ(origin.X + direction.X * length, origin.Y + direction.Y * length, 0);
+
+                    return Line.CreateBound(p0, p1);
+                }
+                catch (Exception ex)
+                {
+                    return null;
+                }
+            }
         }
 
         private Line GetLineFromGeometry(Solid solid)

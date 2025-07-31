@@ -17,6 +17,7 @@ namespace GvcRevitPlugins.TerrainCheck.UI
         public Store Store { get; set; }
 
         private int mainWindowHeight = 600;
+        public ICommand SetRetainWallTypes { get; set; }
         public ICommand SetPlatformElevation { get; set; }
         public ICommand SetBuildingFaceId { get; set; }
         public ICommand SetTerrainBoundaryId { get; set; }
@@ -61,6 +62,7 @@ namespace GvcRevitPlugins.TerrainCheck.UI
         }
         private void SetCommands()
         {
+            SetRetainWallTypes = new RelayCommand(() => { new SetRetainWallTypesCommand().Execute(this); });
             SetPlatformElevation = new RelayCommand(() => { new SetPlatformElevationCommand().Execute(this); });
             SetBuildingFaceId = new RelayCommand(() => { new SetBuildingFaceIdCommand().Execute(this); });
             SetTerrainBoundaryId = new RelayCommand(() => { new SetTerrainBoundaryIdCommand().Execute(this); });

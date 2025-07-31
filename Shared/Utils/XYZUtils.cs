@@ -10,7 +10,15 @@ namespace GvcRevitPlugins.Shared.Utils
     {
         public static double UpOrDown(XYZ A, XYZ B)
         {
-            return A.Z < B.Z ? 2.5 : 1.5;
+            try
+            {
+                return A.Z < B.Z ? 2.5 : 1.5;
+
+            }
+            catch
+            {
+                return 2.5; // Valor padrão em caso de erro
+            }
         }
 
         public static XYZ FaceNormal(Face face, out UV surfaceUV)
@@ -298,6 +306,63 @@ namespace GvcRevitPlugins.Shared.Utils
                     if (mat != null) materialSet.Add(mat);
                 }
             }
+        }
+
+        public static GeometryObject AddSolidWithColor(Document doc, Solid solid, Color color, int transparency, bool addOnScene = false)
+        {
+            if (solid == null || solid.Faces.Size == 0) return null;
+
+            string materialName = $"SolidColor_{color.Red}_{color.Green}_{color.Blue}_{transparency}";
+            Material material = new FilteredElementCollector(doc)
+                .OfClass(typeof(Material))
+                .Cast<Material>()
+                .FirstOrDefault(m => m.Name == materialName);
+
+            if (material == null)
+            {
+                material = (Material)doc.GetElement(Material.Create(doc, materialName));
+                material.Color = color;
+                material.Transparency = transparency;
+                material.Shininess = 128;
+            }
+
+            TessellatedShapeBuilder tsb = new TessellatedShapeBuilder();
+            tsb.OpenConnectedFaceSet(true);
+            foreach (Face face in solid.Faces)
+            {
+                Mesh mesh = face.Triangulate();
+                for (int i = 0; i < mesh.NumTriangles; i++)
+                {
+                    MeshTriangle tri = mesh.get_Triangle(i);
+                    IList<XYZ> triangle = new List<XYZ>
+                    {
+                        tri.get_Vertex(0),
+                        tri.get_Vertex(1),
+                        tri.get_Vertex(2)
+                    };
+                    TessellatedFace tFace = new TessellatedFace(triangle, material.Id);
+                    if (tsb.DoesFaceHaveEnoughLoopsAndVertices(tFace))
+                    {
+                        tsb.AddFace(tFace);
+                    }
+                }
+            }
+
+            tsb.CloseConnectedFaceSet();
+            tsb.Target = TessellatedShapeBuilderTarget.AnyGeometry;
+            tsb.Fallback = TessellatedShapeBuilderFallback.Mesh;
+            tsb.Build();
+            GeometryObject geo = tsb.GetBuildResult().GetGeometricalObjects().First();
+
+            if (addOnScene)
+            {
+                DirectShape shape = DirectShape.CreateElement(doc, new ElementId(BuiltInCategory.OST_GenericModel));
+                shape.AppendShape(new List<GeometryObject> { geo });
+                shape.Name = "Colored Solid";
+                Draw.directShapes.Add(shape);
+            }
+
+            return geo;
         }
     }
 

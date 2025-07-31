@@ -57,6 +57,7 @@ namespace GvcRevitPlugins.TerrainCheck
                 uiDoc,
                 store.IntersectionElementId,
                 store.selection.Lines,
+                store.selection.LineResults,
                 store.SubdivisionLevel,
                 store.PlatformElevation
             ); 

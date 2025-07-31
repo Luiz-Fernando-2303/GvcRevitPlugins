@@ -53,6 +53,19 @@ namespace GvcRevitPlugins.TerrainCheck.Commands
                         .ToList();
                     break;
 
+                case "Arrimo":
+                    elements = elements
+                        .Where(e =>
+                        {
+                            var type = doc.GetElement(e.GetTypeId()) as ElementType;
+                            if (type == null) return false;
+
+                            var heightParam = type.LookupParameter("Altura Arrimo");
+                            return heightParam != null && heightParam.HasValue;
+                        })
+                        .ToList();
+                    break;
+
                 default:
                     TaskDialog.Show("Erro", "Tipo de elemento não reconhecido.");
                     return;

@@ -6,6 +6,10 @@ namespace GvcRevitPlugins.TerrainCheck
 {
     public class Store : OnPropertyChangedBase
     {
+        // talude
+        public List<Element> selectedRetainWalls { get; set; }
+        public List<Material> retainWallsMaterials { get; set; }
+
         public ElementId IntersectionElementId { get; set; }
         public GeometryObject IntersectionGeometricObject { get; set; }
         public Transform ElementTransform { get; set; }
