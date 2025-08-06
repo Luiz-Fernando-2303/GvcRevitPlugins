@@ -11,8 +11,8 @@
         Title="MainWindow"
         Height="auto"
         Width="auto"
-        MinWidth="520"
-        MaxWidth="520"
+        MinWidth="560"
+        MaxWidth="560"
         MaxHeight="690"
         MinHeight="690"
         Background="#FBFBFB"
@@ -162,26 +162,52 @@
                             <!-- Elevação -->
                         </Grid.RowDefinitions>
 
-                        <!-- Botão e seletor de Divisa -->
                         <StackPanel Orientation="Horizontal" Grid.Row="0" Grid.Column="0" Margin="0 0 8 0">
+
+                            <!-- Botão de comando -->
                             <Button Command="{Binding SetTerrainBoundaryId}"
-                    Style="{StaticResource MaterialDesignOutlinedButton}"
-                    ToolTip="Selecione o elemento para cálculo do afastamento mínimo. Ex.: arrimo, guarda corpo cercando o platô superior, etc">
+                                Style="{StaticResource MaterialDesignOutlinedButton}"
+                                ToolTip="Selecione o elemento para cálculo do afastamento mínimo. Ex.: arrimo, guarda corpo cercando o platô superior, etc">
                                 <StackPanel Orientation="Horizontal">
                                     <TextBlock Margin="4 0">Contenção</TextBlock>
                                     <materialDesign:PackIcon Kind="AlertCircleOutline" Margin="4 0" VerticalAlignment="Center" />
                                 </StackPanel>
                             </Button>
-                            <ComboBox Width="130"
-                      Margin="8 0 0 0"
-                      SelectedValue="{Binding Store.BoundarySelectionType, UpdateSourceTrigger=PropertyChanged}"
-                      SelectedValuePath="Content"
-                      VerticalAlignment="Center">
-                                <ComboBoxItem Content="Linha de Divisa" />
-                                <ComboBoxItem Content="Parede" />
-                                <ComboBoxItem Content="Guarda Corpo" />
-                                <ComboBoxItem Content="Arrimo" />
-                            </ComboBox>
+
+                            <!-- Botão que exibe o valor atual da Store e abre o Popup -->
+                            <Button x:Name="ToggleTreeButton"
+                                MinWidth="104"
+                                Margin="8 0 8 0"
+                                Padding="12 4"
+                                Content="{Binding Store.BoundarySelectionType}"
+                                Click="ToggleTreeButton_Click"
+                                VerticalAlignment="Center"
+                                HorizontalAlignment="Left"
+                                HorizontalContentAlignment="Center"
+                                VerticalContentAlignment="Center"
+                                MaxWidth="300"/>
+
+                            <!-- Popup com TreeView -->
+                            <Popup x:Name="BoundaryTreePopup"
+                               PlacementTarget="{Binding ElementName=ToggleTreeButton}"
+                               Placement="Bottom"
+                               StaysOpen="False"
+                               AllowsTransparency="True"
+                               PopupAnimation="Fade">
+                                <Border Background="White" Padding="8" CornerRadius="4">
+                                    <TreeView SelectedItemChanged="TreeView_SelectedItemChanged">
+                                        <TreeViewItem Header="Arrimo" IsExpanded="True">
+                                            <TreeViewItem Header="Arrimo" />
+                                        </TreeViewItem>
+                                        <TreeViewItem Header="Talude" IsExpanded="True">
+                                            <TreeViewItem Header="Linha de Divisa" />
+                                            <TreeViewItem Header="Parede" />
+                                            <TreeViewItem Header="Guarda Corpo" />
+                                        </TreeViewItem>
+                                    </TreeView>
+                                </Border>
+                            </Popup>
+
                         </StackPanel>
 
                         <!-- Botão e seletor de Objeto -->
@@ -297,11 +323,12 @@
 
                         <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center" HorizontalAlignment="Right">
                             <Slider Minimum="5" Maximum="100"
-                            Value="{Binding Store.SubdivisionLevel, UpdateSourceTrigger=PropertyChanged, Mode=TwoWay}"
-                            Width="150"
-                            TickFrequency="1"
-                            IsSnapToTickEnabled="True"
-                            VerticalAlignment="Center"/>            
+                                Value="{Binding Store.SubdivisionLevel, UpdateSourceTrigger=PropertyChanged, Mode=TwoWay}"
+                                Width="150"
+                                TickFrequency="1"
+                                IsSnapToTickEnabled="True"
+                                VerticalAlignment="Center"
+                                FlowDirection="RightToLeft"/>            
 
                             <TextBox Text="{Binding Store.SubdivisionLevel, UpdateSourceTrigger=PropertyChanged, Mode=TwoWay}"
                             VerticalContentAlignment="Center"

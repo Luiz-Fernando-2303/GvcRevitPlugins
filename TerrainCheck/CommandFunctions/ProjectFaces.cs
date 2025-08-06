@@ -45,7 +45,9 @@ namespace GvcRevitPlugins.TerrainCheck
         /// <summary>
         /// Localização do ponto projetado sobre o terreno.
         /// </summary>
-        public XYZ point { get; set; }
+        public XYZ resultPoint { get; set; }
+
+        public XYZ PlatoHeightPoint { get; set; }
 
         /// <summary>
         /// Altura da parede a ser criada a partir do ponto projetado.
@@ -59,7 +61,7 @@ namespace GvcRevitPlugins.TerrainCheck
 
         public WallResult_(XYZ point, double wallHeight)
         {
-            this.point = point;
+            this.resultPoint = point;
             this.wallHeight = wallHeight;
         }
     }
@@ -115,7 +117,8 @@ namespace GvcRevitPlugins.TerrainCheck
             }
 
             Execute();
-        }
+        } 
+
 
         private void Execute()
         {
@@ -138,7 +141,7 @@ namespace GvcRevitPlugins.TerrainCheck
                     continue;
 
                 // Process the projected points to get slope points
-                WallResult_[] slopePoints = SlopePoints(projectedPoints, element, TerrainCheckApp._thisApp.Store.PlatformElevation, false);
+                WallResult_[] slopePoints = SlopePoints(projectedPoints, element, TerrainCheckApp._thisApp.Store.PlatformElevation, true);
                 if (slopePoints == null || slopePoints.Length == 0)
                     continue;
 
@@ -150,7 +153,7 @@ namespace GvcRevitPlugins.TerrainCheck
                 return;
 
             // Create extruded walls from the connected slope points
-            CreateExtrudedWallFromCurves(connectedSlopePoints.ToArray());
+            CreateExtrudedWallFromCurves(connectedSlopePoints.ToArray()); 
         }
 
         private WallResult_[] SlopePoints(IEnumerable<ProjectionResult> projections, Element reference, double baseElevation, bool project = true)
@@ -199,7 +202,7 @@ namespace GvcRevitPlugins.TerrainCheck
                                 retainWallHeight = heightParam.AsDouble();
                             }
                             totalOffset = retainWallHeight - 3.28;
-                        } 
+                        }
                     }
                     // Case: Usual
                     else
@@ -221,8 +224,9 @@ namespace GvcRevitPlugins.TerrainCheck
                         finalPoint = utils.XYZUtils.ProjectPointOntoTopography(TerrainFaces, movedPoint);
 
                     WallResult_ slopeResult = new WallResult_(finalPoint, wallHeight);
+                    slopeResult.PlatoHeightPoint = new XYZ(movedPoint.X, movedPoint.Y, UnitUtils.ConvertToInternalUnits(baseElevation, UnitTypeId.Meters));
 
-                    if (slopeResult.point == null && project)
+                    if (slopeResult.resultPoint == null || project == false)
                     {
                         movedPoint = new XYZ(movedPoint.X, movedPoint.Y, UnitUtils.ConvertToInternalUnits(baseElevation, UnitTypeId.Meters));
                         unprojectedPoints.Add(movedPoint);
@@ -232,6 +236,7 @@ namespace GvcRevitPlugins.TerrainCheck
                     resultPoints.Add(slopeResult);
 
                 } catch (Exception ex) { continue; }
+
             }
 
             if (unprojectedPoints.Count > 0 && project)
@@ -307,6 +312,12 @@ namespace GvcRevitPlugins.TerrainCheck
                     var baseEnd = wall.wallCurve.GetEndPoint(1);
                     double height = wall.wallHeight;
 
+                    height = UnitUtils.ConvertToInternalUnits(
+                        (wall.resultPoint.Z - wall.PlatoHeightPoint.Z) + 10,
+                        UnitTypeId.Feet);
+
+                    height = height < 0 ? height * -1 : height;
+
                     var up = XYZ.BasisZ.Multiply(height);
 
                     var p1 = baseStart;
@@ -353,7 +364,7 @@ namespace GvcRevitPlugins.TerrainCheck
             {
                 var prev = points[i - 1];
                 var current = points[i];
-                double distance = prev.point.DistanceTo(current.point);
+                double distance = prev.PlatoHeightPoint.DistanceTo(current.PlatoHeightPoint);
 
                 // Evita distância nula ou quase nula
                 if (distance < minDistanceTolerance)
@@ -374,7 +385,7 @@ namespace GvcRevitPlugins.TerrainCheck
                 {
                     try
                     {
-                        var curve = Line.CreateBound(prev.point, current.point);
+                        var curve = Line.CreateBound(prev.PlatoHeightPoint, current.PlatoHeightPoint);
                         if (curve.Length > minDistanceTolerance)
                         {
                             prev.wallCurve = curve;

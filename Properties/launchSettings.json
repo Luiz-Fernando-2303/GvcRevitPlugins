@@ -13,8 +13,8 @@
     },
     "Debug": {
       "commandName": "Executable",
-      "executablePath": "C:\\Program Files\\Autodesk\\Revit 2025\\Revit.exe",
-      "workingDirectory": "C:\\Program Files\\Autodesk\\Revit 2025\\",
+      "executablePath": "C:\\Program Files\\Autodesk\\Revit 2026\\Revit.exe",
+      "workingDirectory": "C:\\Program Files\\Autodesk\\Revit 2026\\",
       "nativeDebugging": false
     }
   }

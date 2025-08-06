@@ -4,6 +4,7 @@ using Microsoft.Web.WebView2.Wpf;
 using System.Collections.Generic;
 using System.IO;
 using System.Windows;
+using System.Windows.Controls;
 
 namespace GvcRevitPlugins.TerrainCheck.UI
 {
@@ -20,7 +21,7 @@ namespace GvcRevitPlugins.TerrainCheck.UI
             //This is an alternate way to initialize MaterialDesignInXAML if you don't use the MaterialDesignResourceDictionary in App.xaml
             //var primaryColor = SwatchHelper.Lookup[MaterialDesignColor.Blue900];
             //var accentColor = SwatchHelper.Lookup[MaterialDesignColor.Grey700];
-            
+
             //var theme = Theme.Create(Theme.Dark, primaryColor, accentColor);
             //Resources.SetTheme(theme);
 
@@ -45,6 +46,20 @@ namespace GvcRevitPlugins.TerrainCheck.UI
             }
 
             TerrainCheckApp._thisApp.Store.SelectedMaterials = selection;
+        }
+
+        private void ToggleTreeButton_Click(object sender, RoutedEventArgs e)
+        {
+            BoundaryTreePopup.IsOpen = true;
+        }
+
+        private void TreeView_SelectedItemChanged(object sender, RoutedPropertyChangedEventArgs<object> e)
+        {
+            if (e.NewValue is TreeViewItem item)
+            {
+                TerrainCheckApp._thisApp.Store.BoundarySelectionType = item.Header.ToString();
+                BoundaryTreePopup.IsOpen = false;
+            }
         }
     }
 }
