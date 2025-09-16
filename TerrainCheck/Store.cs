@@ -42,7 +42,7 @@ namespace GvcRevitPlugins.TerrainCheck
             }
         }
 
-        private double _platformElevation;
+        private double _platformElevation = 0;
         public double PlatformElevation
         {
             get => _platformElevation;
@@ -103,6 +103,35 @@ namespace GvcRevitPlugins.TerrainCheck
                     OnPropertyChanged();
                 }
             }
+        }
+
+        public void Reset()
+        {
+            // Resetar listas
+            selectedRetainWalls = new List<Element>();
+            retainWallsMaterials = new List<Material>();
+            SelectedMaterials = new List<string>();
+            TerrainBoundaryIds = new List<ElementId>();
+            Elementmaterials = new List<string>();
+
+            // Resetar objetos
+            IntersectionElementId = null;
+            IntersectionGeometricObject = null;
+            ElementTransform = null;
+            Element = null;
+            selection = null;
+
+            // Resetar valores numéricos
+            SubdivisionLevel = 30; // valor inicial
+            PlatformElevation = 0;
+            MinimumDistance = 0;
+            TerrainCheckStrucWallHeight = 0;
+            TerrainCheckCalcDistance = 0;
+            TerrainCheckCalcHeight = 0;
+
+            // Resetar strings
+            BoundarySelectionType = "Linha de Divisa";
+            ObjectSelectionType = "Elemento";
         }
     }
 }

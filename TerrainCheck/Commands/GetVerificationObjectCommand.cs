@@ -53,6 +53,7 @@ namespace GvcRevitPlugins.TerrainCheck.Commands
             if (objectType != ObjectType.Element)
             {
                 GeometryObject selectedFace = doc.GetElement(reference.ElementId)?.GetGeometryObjectFromReference(reference);
+                TerrainCheckApp._thisApp.Store.Element = doc.GetElement(reference.ElementId);
 
                 LocationPoint location = doc.GetElement(reference.ElementId)?.Location as LocationPoint;
                 if (location == null)

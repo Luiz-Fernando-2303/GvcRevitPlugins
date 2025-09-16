@@ -534,6 +534,7 @@ namespace GvcRevitPlugins.Shared.Utils
                         Execute();
                     }
                     catch { }
+
                     transaction.Commit();
                 }
 

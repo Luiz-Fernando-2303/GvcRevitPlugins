@@ -8,367 +8,184 @@
         xmlns:wv2="clr-namespace:Microsoft.Web.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf"
         xmlns:components="clr-namespace:GvcRevitPlugins.TerrainCheck.UI.Components"
         mc:Ignorable="d"
-        Title="MainWindow"
-        Height="auto"
-        Width="auto"
-        MinWidth="560"
-        MaxWidth="560"
-        MaxHeight="690"
-        MinHeight="690"
+        Title="AFASTAMENTO MÍNIMO CEF" 
+        ResizeMode="NoResize"
         Background="#FBFBFB"
         d:DataContext="{x:Static local:MainWindowDesignModel.Instance}"
-        Topmost="True">
+        Topmost="True"
+        Width="600" Height="710" Closing="Window_Closing">
+
     <Window.Resources>
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
-                <materialDesign:CustomColorTheme BaseTheme="Light"
-                                                 PrimaryColor="#5ac3a6"
-                                                 SecondaryColor="#2469b6" />
+                <materialDesign:CustomColorTheme BaseTheme="Light" PrimaryColor="#5ac3a6" SecondaryColor="#2469b6" />
                 <ResourceDictionary Source="pack://application:,,,/MaterialDesignThemes.Wpf;component/Themes/MaterialDesignTheme.Light.xaml" />
                 <ResourceDictionary Source="pack://application:,,,/MaterialDesignThemes.Wpf;component/Themes/MaterialDesignTheme.Defaults.xaml" />
                 <ResourceDictionary Source="/GvcRevitPlugins;component//TerrainCheck/UI/Components/TerrainDrawDrawingImage.xaml" />
             </ResourceDictionary.MergedDictionaries>
 
             <wv2:CoreWebView2CreationProperties x:Key="EvergreenWebView2CreationProperties" />
+            <SolidColorBrush x:Key="PrimaryColor" Color="#5ac3a6" />
+            <SolidColorBrush x:Key="SecondaryColor" Color="#2469b6" />
+            <SolidColorBrush x:Key="BrandGreyColor" Color="#7b7979" />
+            <SolidColorBrush x:Key="BorderGray" Color="#E2E8F0" />
+            <SolidColorBrush x:Key="Gray" Color="#94A3B8" />
 
-            <SolidColorBrush x:Key="PrimaryColor"
-                             Color="#5ac3a6" />
-            <SolidColorBrush x:Key="SecondaryColor"
-                             Color="#2469b6" />
-            <SolidColorBrush x:Key="BrandGreyColor"
-                             Color="#7b7979" />
-            <SolidColorBrush x:Key="BorderGray"
-                             Color="#E2E8F0" />
-            <SolidColorBrush x:Key="Gray"
-                             Color="#94A3B8" />
+            <Style x:Key="SectionTitle" TargetType="TextBlock">
+                <Setter Property="DockPanel.Dock" Value="Top" />
+                <Setter Property="FontWeight" Value="SemiBold" />
+                <Setter Property="FontSize" Value="16" />
+                <Setter Property="FontFamily" Value="Inter" />
+            </Style>
 
-            <Style x:Key="SectionTitle"
-                   TargetType="TextBlock">
-                <Setter Property="DockPanel.Dock"
-                        Value="Top" />
-                <Setter Property="FontWeight"
-                        Value="SemiBold" />
-                <Setter Property="FontSize"
-                        Value="16" />
-                <Setter Property="FontFamily"
-                        Value="Inter" />
+            <Style x:Key="SectionSubtitle" TargetType="TextBlock">
+                <Setter Property="DockPanel.Dock" Value="Top" />
+                <Setter Property="Foreground" Value="{StaticResource Gray}" />
+                <Setter Property="FontSize" Value="14" />
+                <Setter Property="FontFamily" Value="Inter" />
+                <Setter Property="FontWeight" Value="Light" />
+                <Setter Property="Margin" Value="0 8 0 0" />
             </Style>
-            <Style x:Key="SectionSubtitle"
-                   TargetType="TextBlock">
-                <Setter Property="DockPanel.Dock"
-                        Value="Top" />
-                <Setter Property="Foreground"
-                        Value="{StaticResource Gray}" />
-                <Setter Property="FontSize"
-                        Value="14" />
-                <Setter Property="FontFamily"
-                        Value="Inter" />
-                <Setter Property="FontWeight"
-                        Value="Light" />
-                <Setter Property="Margin"
-                        Value="0 8 0 0" />
-            </Style>
+
             <Style TargetType="DockPanel">
-                <Setter Property="DockPanel.Dock"
-                        Value="Top" />
+                <Setter Property="DockPanel.Dock" Value="Top" />
             </Style>
+
             <Style TargetType="Grid">
-                <Setter Property="DockPanel.Dock"
-                        Value="Top" />
+                <Setter Property="DockPanel.Dock" Value="Top" />
             </Style>
-            <Style TargetType="TextBox"
-                   BasedOn="{StaticResource MaterialDesignTextBox}">
-                <Setter Property="DockPanel.Dock"
-                        Value="Top" />
-                <Setter Property="HorizontalAlignment"
-                        Value="Right" />
-                <Setter Property="VerticalContentAlignment"
-                        Value="Center" />
+
+            <Style TargetType="TextBox" BasedOn="{StaticResource MaterialDesignTextBox}">
+                <Setter Property="DockPanel.Dock" Value="Top" />
+                <Setter Property="HorizontalAlignment" Value="Right" />
+                <Setter Property="VerticalContentAlignment" Value="Center" />
             </Style>
-            <Style TargetType="Separator"
-                   BasedOn="{StaticResource MaterialDesignSeparator}">
-                <Setter Property="DockPanel.Dock"
-                        Value="Top" />
-                <Setter Property="Height"
-                        Value="24" />
+
+            <Style TargetType="Separator" BasedOn="{StaticResource MaterialDesignSeparator}">
+                <Setter Property="DockPanel.Dock" Value="Top" />
+                <Setter Property="Height" Value="24" />
             </Style>
         </ResourceDictionary>
     </Window.Resources>
 
-    <Border Background="White"
-            CornerRadius="6"
-            BorderBrush="{StaticResource BorderGray}"
-            BorderThickness="1">
-        <Grid Margin="0,0,0,-1">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*" />
-            </Grid.ColumnDefinitions>
-
-            <DockPanel Margin="16,16,16,27" >
-                <Grid>
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="auto" />
-                    </Grid.ColumnDefinitions>
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="auto" />
-                        <RowDefinition Height="auto" />
-                    </Grid.RowDefinitions>
-
-                    <StackPanel Orientation="Horizontal">
-                        <Border Background="{DynamicResource PrimaryColor}"
-                                Width="32"
-                                Height="32"
-                                Margin="0 0 8 0"
-                                CornerRadius="10">
-                            <materialDesign:PackIcon Kind="Terrain"
-                                                     HorizontalAlignment="Center"
-                                                     VerticalAlignment="Center"
-                                                     Foreground="White" />
-                        </Border>
-                        <TextBlock Grid.Column="1"
-                                   FontSize="20"
-                                   VerticalAlignment="Center"
-                                   Margin="0 5"
-                                   FontFamily="Segoe UI Semibold"
-                                   Foreground="{StaticResource PrimaryColor}">AFASTAMENTO MÍNIMO CEF</TextBlock>
-                    </StackPanel>
-
-                    <TextBlock Grid.Row="1"
-                       Margin="0 4 0 8"
-                       Style="{StaticResource SectionSubtitle}"
-                       TextWrapping="Wrap">
-                        Verifica o atendimento aos afastamentos mínimos entre edificações e taludes/arrimos exigidos pela Caixa
-                    </TextBlock>
-                </Grid>
-
-                <Separator Grid.Row="1"
-                           Background="{StaticResource BorderGray}" Height="24" />
-
-                <DockPanel DockPanel.Dock="Top">
-                    <TextBlock Text="Cálculo do desnível ou Altura do arrimo"
-                   Style="{StaticResource SectionTitle}"
-                   TextWrapping="Wrap" Height="41" />
-
+    <Border Background="White" CornerRadius="6" BorderBrush="{StaticResource BorderGray}" BorderThickness="1">
+        <ScrollViewer VerticalScrollBarVisibility="Auto">
+            <Grid Margin="0,0,0,-1">
+                <DockPanel Margin="16,16,16,27">
+                    <!-- Cabeçalho -->
                     <Grid>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="auto" />
                         </Grid.ColumnDefinitions>
                         <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto" />
-                            <!-- Botões e combos -->
-                            <RowDefinition Height="Auto" />
-                            <!-- Elevação -->
+                            <RowDefinition Height="auto" />
+                            <RowDefinition Height="auto" />
                         </Grid.RowDefinitions>
 
-                        <StackPanel Orientation="Horizontal" Grid.Row="0" Grid.Column="0" Margin="0 0 8 0">
-
-                            <!-- Botão de comando -->
-                            <Button Command="{Binding SetTerrainBoundaryId}"
-                                Style="{StaticResource MaterialDesignOutlinedButton}"
-                                ToolTip="Selecione o elemento para cálculo do afastamento mínimo. Ex.: arrimo, guarda corpo cercando o platô superior, etc">
-                                <StackPanel Orientation="Horizontal">
-                                    <TextBlock Margin="4 0">Contenção</TextBlock>
-                                    <materialDesign:PackIcon Kind="AlertCircleOutline" Margin="4 0" VerticalAlignment="Center" />
-                                </StackPanel>
-                            </Button>
-
-                            <!-- Botão que exibe o valor atual da Store e abre o Popup -->
-                            <Button x:Name="ToggleTreeButton"
-                                MinWidth="104"
-                                Margin="8 0 8 0"
-                                Padding="12 4"
-                                Content="{Binding Store.BoundarySelectionType}"
-                                Click="ToggleTreeButton_Click"
-                                VerticalAlignment="Center"
-                                HorizontalAlignment="Left"
-                                HorizontalContentAlignment="Center"
-                                VerticalContentAlignment="Center"
-                                MaxWidth="300"/>
-
-                            <!-- Popup com TreeView -->
-                            <Popup x:Name="BoundaryTreePopup"
-                               PlacementTarget="{Binding ElementName=ToggleTreeButton}"
-                               Placement="Bottom"
-                               StaysOpen="False"
-                               AllowsTransparency="True"
-                               PopupAnimation="Fade">
-                                <Border Background="White" Padding="8" CornerRadius="4">
-                                    <TreeView SelectedItemChanged="TreeView_SelectedItemChanged">
-                                        <TreeViewItem Header="Arrimo" IsExpanded="True">
-                                            <TreeViewItem Header="Arrimo" />
-                                        </TreeViewItem>
-                                        <TreeViewItem Header="Talude" IsExpanded="True">
-                                            <TreeViewItem Header="Linha de Divisa" />
-                                            <TreeViewItem Header="Parede" />
-                                            <TreeViewItem Header="Guarda Corpo" />
-                                        </TreeViewItem>
-                                    </TreeView>
-                                </Border>
-                            </Popup>
-
+                        <StackPanel Orientation="Horizontal">
+                            <Border Background="{DynamicResource PrimaryColor}" Width="32" Height="32" Margin="0 0 8 0" CornerRadius="10">
+                                <materialDesign:PackIcon Kind="Terrain" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="White" />
+                            </Border>
+                            <TextBlock Grid.Column="1" FontSize="20" VerticalAlignment="Center" Margin="0 5" FontFamily="Segoe UI Semibold" Foreground="{StaticResource PrimaryColor}">AFASTAMENTO MÍNIMO CEF</TextBlock>
                         </StackPanel>
 
-                        <!-- Botão e seletor de Objeto -->
-                        <StackPanel Orientation="Horizontal" Grid.Row="0" Grid.Column="1" Margin="8 0 0 0">
-                            <Button Style="{StaticResource MaterialDesignRaisedAccentButton}"
-                            Command="{Binding GetTerrainInfoCommand}"
-                            Height="32"
-                            VerticalAlignment="Top"
-                            ToolTip="Selecione uma face ou a família da edificação a ser verificada.">
-                                <StackPanel Orientation="Horizontal">
-                                    <TextBlock Margin="4 0">Objeto</TextBlock>
-                                    <materialDesign:PackIcon Kind="CheckboxMarkedCircleOutline" Margin="4 0" VerticalAlignment="Center" />
-                                </StackPanel>
-                            </Button>
-                            <ComboBox Width="110"
-                            Margin="8 0 0 0"
-                            SelectedValue="{Binding Store.ObjectSelectionType, UpdateSourceTrigger=PropertyChanged}"
-                            SelectedValuePath="Content"
-                            VerticalAlignment="Center">
-                                <ComboBoxItem Content="Elemento" />
-                                <ComboBoxItem Content="Face" />
-                            </ComboBox>
-                        </StackPanel>
-
-                            <!-- Campo de elevação do platô -->
-                        <DockPanel Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2" Margin="0 8 0 0" LastChildFill="False">
-                            <TextBlock Text="Elevação do Platô" DockPanel.Dock="Left" VerticalAlignment="Center" />
-                            <TextBox Text="{Binding Store.PlatformElevation, UpdateSourceTrigger=PropertyChanged}"
-                                 VerticalContentAlignment="Center"
-                                 DockPanel.Dock="Right"
-                                 HorizontalAlignment="Right"
-                                 materialDesign:TextFieldAssist.SuffixText="m"
-                                 TextAlignment="Right"
-                                 Width="50" />
-                            <Button DockPanel.Dock="Right"
-                                HorizontalAlignment="Right"
-                                Style="{StaticResource MaterialDesignOutlinedButton}"
-                                Margin="8 0 5 0"
-                                Width="32"
-                                Height="32"
-                                Padding="0"
-                                Command="{Binding SetPlatformElevation}">
-                                <materialDesign:PackIcon Kind="CursorDefaultClick" Width="16" Height="16" />
-                            </Button>
-                        </DockPanel>
-                    </Grid>
-                </DockPanel>
-
-                <Separator Background="{StaticResource BorderGray}" Height="15" />
-
-                <DockPanel DockPanel.Dock="Top">
-                    <TextBlock Text="Parâmetros"
-                               Style="{StaticResource SectionTitle}" />
-                    <TextBlock Text="Aumente a precisão do resultado em caso de cálculo do afastamento entre edificação e uma divisa em terreno natural, por exemplo."
-                               Margin="0 4 0 8"
-                               Style="{StaticResource SectionSubtitle}"
-                               TextWrapping="Wrap" />
-
-                    <DockPanel Margin="0 0 0 4"
-                               Visibility="Collapsed">
-                        <TextBlock Text="Largura Berma de Divisa"
-                                   DockPanel.Dock="Left" />
-                        <Button DockPanel.Dock="Right"
-                                HorizontalAlignment="Right"
-                                Style="{StaticResource MaterialDesignOutlinedButton}"
-                                Margin="8 0 0 0"
-                                Width="32"
-                                Height="32"
-                                Padding="0"
-                                Command="{Binding SetPlatformElevation}">
-                            <materialDesign:PackIcon Kind="CursorDefaultClick"
-                                                     Width="16"
-                                                     Height="16" />
-                        </Button>
-                        <TextBox Text="1.00"
-                                 VerticalContentAlignment="Center"
-                                 DockPanel.Dock="Right"
-                                 HorizontalAlignment="Right"
-                                 materialDesign:TextFieldAssist.SuffixText="m"
-                                 TextAlignment="Right"
-                                 Width="50" />
-                    </DockPanel>
-
-                    <DockPanel Margin="0 0 0 8"
-                               Visibility="Collapsed">
-                        <TextBlock Text="Altura do Arrimo"
-                                   DockPanel.Dock="Left" />
-                        <Button DockPanel.Dock="Right"
-                                HorizontalAlignment="Right"
-                                Style="{StaticResource MaterialDesignOutlinedButton}"
-                                Margin="8 0 0 0"
-                                Width="32"
-                                Height="32"
-                                Padding="0"
-                                Command="{Binding SetPlatformElevation}">
-                            <materialDesign:PackIcon Kind="CursorDefaultClick"
-                                                     Width="16"
-                                                     Height="16" />
-                        </Button>
-                        <TextBox Text="4"
-                                 VerticalContentAlignment="Center"
-                                 DockPanel.Dock="Right"
-                                 HorizontalAlignment="Right"
-                                 materialDesign:TextFieldAssist.SuffixText="m"
-                                 TextAlignment="Right"
-                                 Width="50" />
-                    </DockPanel>
-
-                    <DockPanel Margin="0 8 0 0">
-                        <TextBlock DockPanel.Dock="Left">
-                            <Run Language="pt-br" Text="Precisão do resultado"/>
+                        <TextBlock Grid.Row="1" Margin="0 4 0 8" Style="{StaticResource SectionSubtitle}" TextWrapping="Wrap">
+                        Verifica o atendimento aos afastamentos mínimos entre edificações e taludes/arrimos exigidos pela Caixa
                         </TextBlock>
+                    </Grid>
 
-                        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center" HorizontalAlignment="Right">
-                            <Slider Minimum="5" Maximum="100"
-                                Value="{Binding Store.SubdivisionLevel, UpdateSourceTrigger=PropertyChanged, Mode=TwoWay}"
-                                Width="150"
-                                TickFrequency="1"
-                                IsSnapToTickEnabled="True"
-                                VerticalAlignment="Center"
-                                FlowDirection="RightToLeft"/>            
+                    <Separator Grid.Row="1" Background="{StaticResource BorderGray}" Height="24" />
 
-                            <TextBox Text="{Binding Store.SubdivisionLevel, UpdateSourceTrigger=PropertyChanged, Mode=TwoWay}"
-                            VerticalContentAlignment="Center"
-                            HorizontalAlignment="Right"
-                            materialDesign:TextFieldAssist.SuffixText="cm"
-                            TextAlignment="Right"
-                            Width="50" />
-                        </StackPanel>
+                    <!-- Cálculo do desnível / altura do arrimo -->
+                    <DockPanel DockPanel.Dock="Top">
+                        <TextBlock Text="Cálculo do desnível ou Altura do arrimo" Style="{StaticResource SectionTitle}" TextWrapping="Wrap" Height="41" />
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="auto" />
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+
+                            <!-- Botões e combos -->
+                            <StackPanel Orientation="Horizontal" Grid.Row="0" Grid.Column="0" Margin="0 0 8 0">
+
+                                <!-- Botão TreeView -->
+                                <Button x:Name="ToggleTreeButton" MinWidth="104" Margin="0 0 8 0" Padding="12 4" Content="{Binding Store.BoundarySelectionType}" Click="ToggleTreeButton_Click" VerticalAlignment="Center" HorizontalAlignment="Left" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" MaxWidth="300" ToolTip="Selecione o tipo do elemento para cálculo do afastamento mínimo."></Button>
+                                <Popup x:Name="BoundaryTreePopup" PlacementTarget="{Binding ElementName=ToggleTreeButton}" Placement="Bottom" StaysOpen="False" AllowsTransparency="True" PopupAnimation="Fade">
+                                    <Border Background="White" Padding="8" CornerRadius="4">
+                                        <TreeView SelectedItemChanged="TreeView_SelectedItemChanged">
+                                            <TreeViewItem Header="Arrimo" IsExpanded="True">
+                                                <TreeViewItem Header="Arrimo" />
+                                            </TreeViewItem>
+                                            <TreeViewItem Header="Talude" IsExpanded="True">
+                                                <TreeViewItem Header="Linha de Divisa" />
+                                                <TreeViewItem Header="Parede" />
+                                                <TreeViewItem Header="Guarda Corpo" />
+                                            </TreeViewItem>
+                                        </TreeView>
+                                    </Border>
+                                </Popup>
+
+                                <!-- Botão Contenção -->
+                                <Button Command="{Binding SetTerrainBoundaryId}" Style="{StaticResource MaterialDesignOutlinedButton}" ToolTip="Selecione o elemento para cálculo do afastamento mínimo">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Margin="4 0">Selecionar tipo</TextBlock>
+                                        <materialDesign:PackIcon Kind="AlertCircleOutline" Margin="4 0" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </Button>
+                            </StackPanel>
+
+                            <!-- Botão e combo Objeto -->
+                            <StackPanel Orientation="Horizontal" Grid.Row="0" Grid.Column="1" Margin="8 0 0 0">
+                                <Button Style="{StaticResource MaterialDesignRaisedAccentButton}" Command="{Binding GetTerrainInfoCommand}" Height="32" VerticalAlignment="Top" ToolTip="Selecione a família ou a face da edificação a ser verificada.">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Margin="4 0">Objeto</TextBlock>
+                                        <materialDesign:PackIcon Kind="CheckboxMarkedCircleOutline" Margin="4 0" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </Button>
+                                <ComboBox Width="110" Margin="8 0 0 0" SelectedValue="{Binding Store.ObjectSelectionType, UpdateSourceTrigger=PropertyChanged}" SelectedValuePath="Content" VerticalAlignment="Center" SelectionChanged="ComboBox_SelectionChanged">
+                                    <ComboBoxItem Content="Família" />
+                                    <ComboBoxItem Content="Face" />
+                                </ComboBox>
+                            </StackPanel>
+
+                            <!--Selecionar plato da edificacao-->
+                            <!-- Campo de elevação do platô -->
+                            <DockPanel Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2" Margin="0 8 0 0" LastChildFill="False">
+                                <TextBlock Text="Selecionar platô da edificação:" DockPanel.Dock="Left" VerticalAlignment="Center" />
+                                <TextBox Text="{Binding Store.PlatformElevation, UpdateSourceTrigger=PropertyChanged}" VerticalContentAlignment="Center" DockPanel.Dock="Right" HorizontalAlignment="Right" materialDesign:TextFieldAssist.SuffixText="m" TextAlignment="Right" Width="50" />
+                                <Button DockPanel.Dock="Right" HorizontalAlignment="Right" Style="{StaticResource MaterialDesignOutlinedButton}" Margin="8 0 5 0" Width="32" Height="32" Padding="0" Command="{Binding SetPlatformElevation}">
+                                    <materialDesign:PackIcon Kind="CursorDefaultClick" Width="16" Height="16" />
+                                </Button>
+                            </DockPanel>
+                        </Grid>
                     </DockPanel>
 
-                    <DockPanel Margin="0 8 0 0">
-                        <TextBlock 
-                            DockPanel.Dock="Left" 
-                            VerticalAlignment="Top" 
-                            Margin="0 4 12 0" 
-                            FontWeight="SemiBold"
-                            FontSize="14"
-                            Foreground="{DynamicResource MaterialDesignBody}"
-                            Text="Filtre o material da edificação" />
+                    <Separator Background="{StaticResource BorderGray}" Height="15" />
 
-                        <Border 
-                            DockPanel.Dock="Right"
-                            Width="220"
-                            Height="130"
-                            Background="{DynamicResource MaterialDesignPaper}"
-                            CornerRadius="6"
-                            Padding="8"
-                            materialDesign:ShadowAssist.ShadowDepth="Depth1">
+                    <!-- Parâmetros -->
+                    <DockPanel DockPanel.Dock="Top">
+                        <TextBlock Text="Parâmetros" Style="{StaticResource SectionTitle}" />
+                        <TextBlock Text="Aumente a precisão do resultado em caso de cálculo do afastamento entre edificação e uma divisa em terreno natural, por exemplo." Margin="0 4 0 8" Style="{StaticResource SectionSubtitle}" TextWrapping="Wrap" />
 
+                        <!-- Precisão do resultado -->
+                        <DockPanel Margin="0 8 0 0">
+                            <TextBlock DockPanel.Dock="Left" VerticalAlignment="Center">Precisão do resultado</TextBlock>
+                            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center" HorizontalAlignment="Right">
+                                <Slider Minimum="5" Maximum="100" Value="{Binding Store.SubdivisionLevel, UpdateSourceTrigger=PropertyChanged, Mode=TwoWay}" Width="150" TickFrequency="1" IsSnapToTickEnabled="True" VerticalAlignment="Center" FlowDirection="RightToLeft"/>
+                                <TextBox Text="{Binding Store.SubdivisionLevel, UpdateSourceTrigger=PropertyChanged, Mode=TwoWay}" VerticalContentAlignment="Center" HorizontalAlignment="Right" materialDesign:TextFieldAssist.SuffixText="cm" TextAlignment="Right" Width="50" />
+                            </StackPanel>
+                        </DockPanel>
+
+                        <!-- Filtrar material da edificação -->
+                        <TextBlock x:Name="MaterialLabel" DockPanel.Dock="Top" Margin="0 0 0 4" FontWeight="SemiBold" FontSize="14" Foreground="{DynamicResource MaterialDesignBody}" Text="Filtre o material da edificação" />
+                        <Border DockPanel.Dock="Top" Width="auto" Height="150" Background="{DynamicResource MaterialDesignPaper}" CornerRadius="6" Padding="8" materialDesign:ShadowAssist.ShadowDepth="Depth1">
                             <ScrollViewer VerticalScrollBarVisibility="Auto">
-                                <ListBox
-                                    x:Name="MateriaisListBox"
-                                    ItemsSource="{Binding Store.Elementmaterials}"
-                                    SelectionMode="Multiple"
-                                    BorderThickness="0"
-                                    Background="Transparent"
-                                    Foreground="{DynamicResource MaterialDesignBody}"
-                                    FontSize="13"
-                                    ItemContainerStyle="{StaticResource MaterialDesignListBoxItem}" 
-                                    SelectionChanged="MateriaisListBox_SelectionChanged">
+                                <ListBox x:Name="MateriaisListBox" ItemsSource="{Binding Store.Elementmaterials}" SelectionMode="Multiple" BorderThickness="0" Background="Transparent" Foreground="{DynamicResource MaterialDesignBody}" FontSize="13" ItemContainerStyle="{StaticResource MaterialDesignListBoxItem}" SelectionChanged="MateriaisListBox_SelectionChanged">
                                     <ListBox.ItemTemplate>
                                         <DataTemplate>
                                             <TextBlock Text="{Binding}" Padding="4 2" />
@@ -378,50 +195,25 @@
                             </ScrollViewer>
                         </Border>
                     </DockPanel>
+
+                    <Separator Background="{StaticResource BorderGray}" Height="15" />
+
+                    <!-- Resultado -->
+                    <Grid Grid.Row="6">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="auto" />
+                            <RowDefinition Height="16" />
+                            <RowDefinition Height="auto" />
+                            <RowDefinition Height="16" />
+                            <RowDefinition Height="auto" />
+                        </Grid.RowDefinitions>
+                        <TextBlock Text="Resultado" Style="{StaticResource SectionTitle}" />
+                        <TextBlock Visibility="Collapsed" Text="Elemento de conferência do afastamento mínimo gerado!" Grid.Row="2" Margin="0" Style="{StaticResource SectionSubtitle}" TextWrapping="Wrap" />
+                        <StackPanel Visibility="Visible" Grid.Row="2" Orientation="Horizontal"/>
+                        <Button Foreground="White" Grid.Row="4" Command="{Binding DrawTerrainCheckCommand}">Desenhar Resultados</Button>
+                    </Grid>
                 </DockPanel>
-
-                <Separator Background="{StaticResource BorderGray}" Height="15" />
-
-                <Grid Grid.Row="6">
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="auto" />
-                        <RowDefinition Height="16" />
-                        <RowDefinition Height="auto" />
-                        <RowDefinition Height="16" />
-                        <RowDefinition Height="auto" />
-                    </Grid.RowDefinitions>
-
-                    <TextBlock Text="Resultado"
-                               Style="{StaticResource SectionTitle}" />
-
-                    <TextBlock Visibility="Collapsed"
-                               Text="Elemento de conferência do afastamento mínimo gerado!"
-                               Grid.Row="2"
-                               Margin="0"
-                               Style="{StaticResource SectionSubtitle}"
-                               TextWrapping="Wrap" />
-                    <StackPanel Visibility="Visible"
-                                Grid.Row="2"
-                                Orientation="Horizontal">
-                        <materialDesign:PackIcon Kind="CheckboxMarkedCircleOutline"
-                                                 VerticalAlignment="Center"
-                                                 Margin="0 0 4 0"
-                                                 Foreground="{StaticResource PrimaryHueMidBrush}" />
-                        <TextBlock Text="Elemento de conferência do afastamento mínimo gerado!"
-                                   Grid.Row="2"
-                                   TextWrapping="Wrap"
-                                   VerticalAlignment="Center"
-                                   Foreground="{StaticResource PrimaryHueMidBrush}" />
-                    </StackPanel>
-
-                    <Button Foreground="White"
-                            Grid.Row="4"
-                            Command="{Binding DrawTerrainCheckCommand}">
-                        Desenhar Resultados
-                    </Button>
-                </Grid>
-
-            </DockPanel>
-        </Grid>
+            </Grid>
+        </ScrollViewer>
     </Border>
 </Window>

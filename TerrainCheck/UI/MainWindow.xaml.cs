@@ -61,5 +61,36 @@ namespace GvcRevitPlugins.TerrainCheck.UI
                 BoundaryTreePopup.IsOpen = false;
             }
         }
+
+        private void ComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (e.AddedItems.Count > 0)
+            {
+                var selectedItem = e.AddedItems[0] as ComboBoxItem;
+                string selectedValue = selectedItem?.Content.ToString();
+
+                if (selectedValue == "Face")
+                {
+                    // Hide material selection
+                    MateriaisListBox.Visibility = Visibility.Collapsed;
+
+                    // Hide the label
+                    MaterialLabel.Visibility = Visibility.Collapsed;
+                }
+                else
+                {
+                    // Show material selection
+                    MateriaisListBox.Visibility = Visibility.Visible;
+                    // Show the label
+                    MaterialLabel.Visibility = Visibility.Visible;
+                }
+            }
+        }
+
+        private void Window_Closing(object sender, System.ComponentModel.CancelEventArgs e)
+        {
+            TerrainCheckApp._thisApp.Store.Reset();
+        }
     }
 }
+ 

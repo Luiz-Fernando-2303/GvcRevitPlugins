@@ -306,7 +306,6 @@ namespace GvcRevitPlugins.TerrainCheck
             {
                 tx.Start();
 
-
                 foreach (var wall in wallResults)
                 {
                     var baseStart = wall.wallCurve.GetEndPoint(0);
