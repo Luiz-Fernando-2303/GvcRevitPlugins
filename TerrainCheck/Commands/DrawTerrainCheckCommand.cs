@@ -8,8 +8,6 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 
-using utils = GvcRevitPlugins.Shared.Utils;
-
 namespace GvcRevitPlugins.TerrainCheck.Commands
 {
     public class DrawTerrainCheckCommand : AsyncCommandBase, IGvcCommand
