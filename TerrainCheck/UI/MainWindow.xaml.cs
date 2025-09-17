@@ -1,6 +1,7 @@
 ﻿using MaterialDesignColors;
 using MaterialDesignThemes.Wpf;
 using Microsoft.Web.WebView2.Wpf;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Windows;
@@ -50,7 +51,7 @@ namespace GvcRevitPlugins.TerrainCheck.UI
 
         private void ToggleTreeButton_Click(object sender, RoutedEventArgs e)
         {
-            BoundaryTreePopup.IsOpen = true;
+            BoundaryTreePopup.IsOpen = !BoundaryTreePopup.IsOpen;
         }
 
         private void TreeView_SelectedItemChanged(object sender, RoutedPropertyChangedEventArgs<object> e)
@@ -90,6 +91,16 @@ namespace GvcRevitPlugins.TerrainCheck.UI
         private void Window_Closing(object sender, System.ComponentModel.CancelEventArgs e)
         {
             TerrainCheckApp._thisApp.Store.Reset();
+        }
+
+        private void BoundaryTreePopup_Opened(object sender, EventArgs e)
+        {
+            ArrowIcon.Text = "▲"; // seta para cima quando aberto
+        }
+
+        private void BoundaryTreePopup_Closed(object sender, EventArgs e)
+        {
+            ArrowIcon.Text = "▼"; // seta para baixo quando fechado
         }
     }
 }

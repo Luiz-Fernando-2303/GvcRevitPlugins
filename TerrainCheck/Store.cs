@@ -105,6 +105,12 @@ namespace GvcRevitPlugins.TerrainCheck
             }
         }
 
+        private string Version { get; set; } = "1.2.0";
+        public string Version_
+        {
+            get => Version;
+        }
+
         public void Reset()
         {
             // Resetar listas
