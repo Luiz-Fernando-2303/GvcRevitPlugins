@@ -358,27 +358,27 @@ namespace GvcRevitPlugins.TerrainCheck
 
                 if (createdIds.Count > 0)
                 {
-                    //UIDocument uidoc = new UIDocument(Document);
-                    //createdIds.Add(TerrainCheckApp._thisApp.Store.Element.Id);
-                    //// add toposolid on view
-                    //var search = new FilteredElementCollector(Document)
-                    //    .OfClass(typeof(Toposolid))
-                    //    .Cast<Toposolid>().ToList();
-                    //if (search != null)
-                    //    createdIds.AddRange(search.Select(s => s.Id));
+                    UIDocument uidoc = new UIDocument(Document);
+                    createdIds.Add(TerrainCheckApp._thisApp.Store.Element.Id);
+                    // add toposolid on view
+                    var search = new FilteredElementCollector(Document)
+                        .OfClass(typeof(Toposolid))
+                        .Cast<Toposolid>().ToList();
+                    if (search != null)
+                        createdIds.AddRange(search.Select(s => s.Id));
 
-                    //createdIds.AddRange(TerrainCheckApp._thisApp.Store.TerrainBoundaryIds);
+                    createdIds.AddRange(TerrainCheckApp._thisApp.Store.TerrainBoundaryIds);
 
-                    //uidoc.Selection.SetElementIds(createdIds);
-                    //Document.ActiveView.IsolateElementsTemporary(createdIds);
+                    uidoc.Selection.SetElementIds(createdIds);
+                    Document.ActiveView.IsolateElementsTemporary(createdIds);
 
-                    //var tgm = TemporaryGraphicsManager.GetTemporaryGraphicsManager(Document);
-                    //var ogs = new OverrideGraphicSettings()
-                    //    .SetProjectionLineColor(new Color(0, 255, 0)) // verde
-                    //    .SetSurfaceTransparency(30);                  // semitransparente
+                    var tgm = TemporaryGraphicsManager.GetTemporaryGraphicsManager(Document);
+                    var ogs = new OverrideGraphicSettings()
+                        .SetProjectionLineColor(new Color(0, 255, 0)) // verde
+                        .SetSurfaceTransparency(30);                  // semitransparente
 
-                    //foreach (var id in createdIds)
-                    //    Document.ActiveView.SetElementOverrides(id, ogs);
+                    foreach (var id in createdIds)
+                        Document.ActiveView.SetElementOverrides(id, ogs);
                 }
 
                 tx.Commit();
