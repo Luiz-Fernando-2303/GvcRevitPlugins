@@ -176,7 +176,7 @@
                                     <materialDesign:PackIcon Kind="CheckboxMarkedCircleOutline" Margin="4 0" VerticalAlignment="Center" />
                                 </StackPanel>
                             </Button>
-                            <ComboBox Width="110" Margin="8 0 0 0" SelectedValue="{Binding Store.ObjectSelectionType, UpdateSourceTrigger=PropertyChanged}" SelectedValuePath="Content" VerticalAlignment="Center" SelectionChanged="ComboBox_SelectionChanged">
+                            <ComboBox x:Name="selectionType_" Width="110" Margin="8 0 0 0" SelectedValue="{Binding Store.ObjectSelectionType, UpdateSourceTrigger=PropertyChanged}" SelectedValuePath="Content" VerticalAlignment="Center" SelectionChanged="ComboBox_SelectionChanged">
                                 <ComboBoxItem Content="Família" />
                                 <ComboBoxItem Content="Face" />
                             </ComboBox>
@@ -202,7 +202,7 @@
                     <DockPanel Margin="0 8 0 0">
                         <TextBlock DockPanel.Dock="Left" VerticalAlignment="Center">Precisão do resultado</TextBlock>
                         <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center" HorizontalAlignment="Right">
-                            <Slider Minimum="5" Maximum="100" Value="{Binding Store.SubdivisionLevel, UpdateSourceTrigger=PropertyChanged, Mode=TwoWay}" Width="150" TickFrequency="1" IsSnapToTickEnabled="True" VerticalAlignment="Center" FlowDirection="RightToLeft"/>
+                            <Slider Minimum="20" Maximum="100" Value="{Binding Store.SubdivisionLevel, UpdateSourceTrigger=PropertyChanged, Mode=TwoWay}" Width="150" TickFrequency="10" IsSnapToTickEnabled="True" VerticalAlignment="Center" FlowDirection="RightToLeft"/>
                             <TextBox Text="{Binding Store.SubdivisionLevel, UpdateSourceTrigger=PropertyChanged, Mode=TwoWay}" VerticalContentAlignment="Center" HorizontalAlignment="Right" materialDesign:TextFieldAssist.SuffixText="cm" TextAlignment="Right" Width="50" />
                         </StackPanel>
                     </DockPanel>

@@ -308,8 +308,9 @@ namespace GvcRevitPlugins.Shared.Utils
             }
         }
 
-        public static GeometryObject AddSolidWithColor(Document doc, Solid solid, Color color, int transparency, bool addOnScene = false)
+        public static GeometryObject AddSolidWithColor(Document doc, Solid solid, Color color, int transparency, out Element element, bool addOnScene = false)
         {
+            element = null;
             if (solid == null || solid.Faces.Size == 0) return null;
 
             string materialName = $"SolidColor_{color.Red}_{color.Green}_{color.Blue}_{transparency}";
@@ -357,6 +358,7 @@ namespace GvcRevitPlugins.Shared.Utils
             if (addOnScene)
             {
                 DirectShape shape = DirectShape.CreateElement(doc, new ElementId(BuiltInCategory.OST_GenericModel));
+                element = shape;
                 shape.AppendShape(new List<GeometryObject> { geo });
                 shape.Name = "Colored Solid";
                 Draw.directShapes.Add(shape);

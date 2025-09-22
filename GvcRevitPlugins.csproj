@@ -51,6 +51,14 @@
 	<ItemGroup>
 	  <None Remove="Resources\RevitCategoriesList.tsv" />
 	</ItemGroup>
+	<ItemGroup>
+	  <COMReference Include="{215d64d2-031c-33c7-96e3-61794cd1ee61}">
+	    <WrapperTool>tlbimp</WrapperTool>
+	    <VersionMinor>4</VersionMinor>
+	    <VersionMajor>2</VersionMajor>
+	    <Guid>215d64d2-031c-33c7-96e3-61794cd1ee61</Guid>
+	  </COMReference>
+	</ItemGroup>
 
 	<!--<PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debug R25|AnyCPU'">
 		<DefineConstants>DEBUG;TRACE</DefineConstants>
@@ -176,7 +184,7 @@
 	
 	<!-- Post-build events for adding files to Revit addins folder -->
 	<Target Name="PostBuild" AfterTargets="PostBuildEvent">
-		<Exec Command="if exist &quot;%25AppData%25\Autodesk\Revit\Addins\2026&quot; (&#xD;&#xA;    echo Revit Addins directory exists.&#xD;&#xA;&#xD;&#xA;    copy &quot;$(ProjectDir)*.addin&quot; &quot;%25AppData%25\Autodesk\Revit\Addins\2026&quot;&#xD;&#xA;&#xD;&#xA;    if not exist &quot;%25AppData%25\Autodesk\Revit\Addins\2026\Lupa Revit&quot; (&#xD;&#xA;        mkdir &quot;%25AppData%25\Autodesk\Revit\Addins\2026\Lupa Revit&quot;&#xD;&#xA;    )&#xD;&#xA;&#xD;&#xA;    xcopy &quot;$(TargetDir)*.*&quot; &quot;%25AppData%25\Autodesk\Revit\Addins\2026\Lupa Revit&quot; /E /Y&#xD;&#xA;&#xD;&#xA;) else (&#xD;&#xA;    echo Error: Revit Addins directory does not exist.&#xD;&#xA;    exit /b 1&#xD;&#xA;)" />
+		<Exec Command="if exist &quot;%25AppData%25\Autodesk\Revit\Addins\2025&quot; (&#xD;&#xA;    echo Revit Addins directory exists.&#xD;&#xA;&#xD;&#xA;    copy &quot;$(ProjectDir)*.addin&quot; &quot;%25AppData%25\Autodesk\Revit\Addins\2025&quot;&#xD;&#xA;&#xD;&#xA;    if not exist &quot;%25AppData%25\Autodesk\Revit\Addins\2025\Lupa Revit&quot; (&#xD;&#xA;        mkdir &quot;%25AppData%25\Autodesk\Revit\Addins\2025\Lupa Revit&quot;&#xD;&#xA;    )&#xD;&#xA;&#xD;&#xA;    xcopy &quot;$(TargetDir)*.*&quot; &quot;%25AppData%25\Autodesk\Revit\Addins\2025\Lupa Revit&quot; /E /Y&#xD;&#xA;&#xD;&#xA;) else (&#xD;&#xA;    echo Error: Revit Addins directory does not exist.&#xD;&#xA;    exit /b 1&#xD;&#xA;)" />
 		<Exec Command="echo outputpath &quot;$(ProjectDir)$(OutputPath)*.dll&quot;" />
 		<Exec Command="if exist &quot;$(AppData)\Autodesk\REVIT\Addins\2024\Lupa Revit&quot; copy &quot;$(ProjectDir)$(OutputPath)*.dll&quot; &quot;$(AppData)\Autodesk\REVIT\Addins\2024\Lupa Revit&quot;" />
 		<Exec Command="if exist &quot;$(AppData)\Autodesk\REVIT\Addins\2025&quot; copy &quot;$(ProjectDir)*.addin&quot; &quot;$(AppData)\Autodesk\REVIT\Addins\2025&quot;" />

@@ -105,7 +105,7 @@ namespace GvcRevitPlugins.TerrainCheck
             }
         }
 
-        private string Version { get; set; } = "1.2.0";
+        private string Version { get; set; } = "1.3.1";
         public string Version_
         {
             get => Version;

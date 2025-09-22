@@ -58,6 +58,9 @@ namespace GvcRevitPlugins.TerrainCheck.Commands
                 TerrainCheckApp._thisApp.Store.PlatformElevation = 0;
             }
 
+            // demarcar objetos ao gerar (ok)
+            // loading para indicar trabalho (ok)
+            // reduzir tamanho minimo (ok)
             TerrainCheckCommand.Execute(uiApp as UIApplication, true);
         }
 

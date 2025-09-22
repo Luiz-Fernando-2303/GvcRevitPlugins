@@ -1,5 +1,6 @@
 ﻿using Autodesk.Revit.DB;
 using Autodesk.Revit.UI;
+using GvcRevitPlugins.TerrainCheck.UI;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -161,6 +162,13 @@ namespace GvcRevitPlugins.TerrainCheck
             List<WallResult_> resultPoints = new();
             List<XYZ> unprojectedPoints = new();
 
+            int totalPoints = projections.Count();
+
+            ProgressWindow progressWindow = new ProgressWindow();
+            progressWindow.Show();
+
+            int currentIndex = 0;
+
             foreach (ProjectionResult projectionResult in projections)
             {
                 try
@@ -188,7 +196,6 @@ namespace GvcRevitPlugins.TerrainCheck
                     double minDistance = UnitUtils.ConvertToInternalUnits(utils.XYZUtils.UpOrDown(facePoint, projectedPoint), UnitTypeId.Meters);
                     double totalOffset = 0;
 
-                    // Case: Arrimo
                     if (TerrainCheckApp._thisApp.Store.BoundarySelectionType == "Arrimo")
                     {
                         ElementType type = reference.Document.GetElement(reference.GetTypeId()) as ElementType;
@@ -204,12 +211,8 @@ namespace GvcRevitPlugins.TerrainCheck
                             totalOffset = retainWallHeight - 3.28;
                         }
                     }
-                    // Case: Usual
                     else
                     {
-                        //if (wallHeight > minDistance)
-                        //    minDistance = wallHeight - UnitUtils.ConvertToInternalUnits(1, UnitTypeId.Meters);
-
                         double verticalOffset = (projectedPoint.Z - baseElevation) / 2;
                         verticalOffset = Math.Max(verticalOffset, minDistance);
 
@@ -235,9 +238,16 @@ namespace GvcRevitPlugins.TerrainCheck
 
                     resultPoints.Add(slopeResult);
 
-                } catch (Exception ex) { continue; }
+                }
+                catch (Exception) { continue; }
 
+                currentIndex++;
+                double percentage = (double)currentIndex / totalPoints * 100;
+                progressWindow.UpdateProgress(percentage, $"Processando pontos: {currentIndex}/{totalPoints}");
+                System.Windows.Threading.Dispatcher.CurrentDispatcher.Invoke(System.Windows.Threading.DispatcherPriority.Background, new Action(delegate { }));
             }
+
+            progressWindow.Close();
 
             if (unprojectedPoints.Count > 0 && project)
             {
@@ -306,18 +316,16 @@ namespace GvcRevitPlugins.TerrainCheck
             {
                 tx.Start();
 
+                List<ElementId> createdIds = new List<ElementId>();
+
                 foreach (var wall in wallResults)
                 {
                     var baseStart = wall.wallCurve.GetEndPoint(0);
                     var baseEnd = wall.wallCurve.GetEndPoint(1);
-                    double height = wall.wallHeight;
 
-                    height = UnitUtils.ConvertToInternalUnits(
-                        (wall.resultPoint.Z - wall.PlatoHeightPoint.Z) + 10,
-                        UnitTypeId.Feet);
+                    double height = UnitUtils.ConvertToInternalUnits(10, UnitTypeId.Feet);
 
-                    height = height < 0 ? height * -1 : height;
-
+                    height = height < 0 ? -height : height;
                     var up = XYZ.BasisZ.Multiply(height);
 
                     var p1 = baseStart;
@@ -335,13 +343,42 @@ namespace GvcRevitPlugins.TerrainCheck
                     Solid wallSolid = GeometryCreationUtilities.CreateExtrusionGeometry(
                         loops,
                         (p2 - p1).CrossProduct(up).Normalize(),
-                        0.01
+                        0.1
                     );
 
-                    var color = new Color(255, 0, 0); // RGB entre 0-255
-                    int transparency = 70; // de 0 (opaco) a 100 (totalmente transparente)
+                    var color = new Color(255, 0, 0); // vermelho
+                    int transparency = 70;            // 0 = opaco, 100 = invisível
 
-                    var geo = utils.ElementUtils.AddSolidWithColor(Document, wallSolid, color, transparency, addOnScene: true);
+                    var geo = utils.ElementUtils.AddSolidWithColor(
+                        Document, wallSolid, color, transparency, out var element, addOnScene: true); // adcionar propriedade de referencia
+
+                    if (element != null)
+                        createdIds.Add(element.Id);
+                }
+
+                if (createdIds.Count > 0)
+                {
+                    //UIDocument uidoc = new UIDocument(Document);
+                    //createdIds.Add(TerrainCheckApp._thisApp.Store.Element.Id);
+                    //// add toposolid on view
+                    //var search = new FilteredElementCollector(Document)
+                    //    .OfClass(typeof(Toposolid))
+                    //    .Cast<Toposolid>().ToList();
+                    //if (search != null)
+                    //    createdIds.AddRange(search.Select(s => s.Id));
+
+                    //createdIds.AddRange(TerrainCheckApp._thisApp.Store.TerrainBoundaryIds);
+
+                    //uidoc.Selection.SetElementIds(createdIds);
+                    //Document.ActiveView.IsolateElementsTemporary(createdIds);
+
+                    //var tgm = TemporaryGraphicsManager.GetTemporaryGraphicsManager(Document);
+                    //var ogs = new OverrideGraphicSettings()
+                    //    .SetProjectionLineColor(new Color(0, 255, 0)) // verde
+                    //    .SetSurfaceTransparency(30);                  // semitransparente
+
+                    //foreach (var id in createdIds)
+                    //    Document.ActiveView.SetElementOverrides(id, ogs);
                 }
 
                 tx.Commit();
@@ -408,10 +445,17 @@ namespace GvcRevitPlugins.TerrainCheck
             return curves.ToArray();
         }
 
-        private ProjectionResult[] ProjectLinesToFaces(IEnumerable<XYZ> points)
+        public ProjectionResult[] ProjectLinesToFaces(IEnumerable<XYZ> points)
         {
             List<XYZ> projectedPoints = new();
             List<ProjectionResult> results = new();
+
+            int totalPoints = points.Count();
+
+            ProgressWindow progressWindow = new ProgressWindow();
+            progressWindow.Show();
+
+            int currentIndex = 0;
 
             foreach (XYZ startPoint in points)
             {
@@ -419,6 +463,13 @@ namespace GvcRevitPlugins.TerrainCheck
                 {
                     XYZ normal = utils.XYZUtils.FaceNormal(face, out _);
                     if (normal == null) continue;
+
+                    // Vetor do ponto até a face (usando o ponto mais próximo da face ou ponto central da face)
+                    XYZ vectorToFace = (face.Evaluate(new UV(0.5, 0.5)) - startPoint).Normalize();
+
+                    // Se a normal estiver apontando para o lado oposto, ignorar
+                    if (normal.DotProduct(vectorToFace) <= 0)
+                        continue;
 
                     Line horizontalLine = utils.XYZUtils.GetLongestHorizontalEdge(face);
                     if (horizontalLine == null) continue;
@@ -436,7 +487,16 @@ namespace GvcRevitPlugins.TerrainCheck
                         break;
                     }
                 }
+
+                currentIndex++;
+                double percentage = (double)currentIndex / totalPoints * 100;
+                progressWindow.UpdateProgress(percentage, $"Projetando pontos: {currentIndex}/{totalPoints}");
+                System.Windows.Threading.Dispatcher.CurrentDispatcher.Invoke(
+                    System.Windows.Threading.DispatcherPriority.Background,
+                    new Action(delegate { })
+                );
             }
+            progressWindow.Close();
 
             return results.ToArray();
         }

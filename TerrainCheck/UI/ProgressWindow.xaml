@@ -1,0 +1,17 @@
+<Window x:Class="GvcRevitPlugins.TerrainCheck.UI.ProgressWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Projetando Pontos" Height="120" Width="400"
+        WindowStartupLocation="CenterScreen"
+        ResizeMode="NoResize"
+        WindowStyle="ToolWindow">
+    <Grid Margin="10">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <TextBlock x:Name="StatusText" Text="Iniciando..." FontSize="14" HorizontalAlignment="Center" Margin="0,0,0,10"/>
+        <ProgressBar x:Name="ProgressBar" Grid.Row="1" Height="25" Minimum="0" Maximum="100"/>
+    </Grid>
+</Window>

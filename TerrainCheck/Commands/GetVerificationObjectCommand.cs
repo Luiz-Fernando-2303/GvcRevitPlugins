@@ -31,9 +31,9 @@ namespace GvcRevitPlugins.TerrainCheck.Commands
             string selectionType = TerrainCheckApp._thisApp.Store.ObjectSelectionType;
             ObjectType objectType = selectionType switch
             {
-                "Face"  => ObjectType.Face,
+                "Face"  => ObjectType.Face,    
                 _       => ObjectType.Element
-            };
+            }; 
 
             Reference reference = uidoc.Selection.PickObject(objectType, $"Select the verification target ({selectionType})");
             if (reference == null) return;

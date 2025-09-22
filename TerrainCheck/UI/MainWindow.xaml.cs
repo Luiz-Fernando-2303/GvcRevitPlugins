@@ -1,4 +1,5 @@
-﻿using MaterialDesignColors;
+﻿using Autodesk.Revit.UI;
+using MaterialDesignColors;
 using MaterialDesignThemes.Wpf;
 using Microsoft.Web.WebView2.Wpf;
 using System;
@@ -60,6 +61,9 @@ namespace GvcRevitPlugins.TerrainCheck.UI
             {
                 TerrainCheckApp._thisApp.Store.BoundarySelectionType = item.Header.ToString();
                 BoundaryTreePopup.IsOpen = false;
+
+                if (item.Header.ToString() == "Arrimo")
+                    selectionType_.SelectedIndex = 1;
             }
         }
 
@@ -69,6 +73,13 @@ namespace GvcRevitPlugins.TerrainCheck.UI
             {
                 var selectedItem = e.AddedItems[0] as ComboBoxItem;
                 string selectedValue = selectedItem?.Content.ToString();
+
+                if (TerrainCheckApp._thisApp.Store.BoundarySelectionType == "Arrimo" && selectedValue == "Família")
+                {
+                    TaskDialog.Show("Aviso", "Arrimo não habilita seleção por família. A seleção será alterada para 'Face'.");
+                    selectedValue = "Face";
+                    selectionType_.SelectedIndex = 1;
+                }
 
                 if (selectedValue == "Face")
                 {
