@@ -1,4 +1,5 @@
 ﻿using Autodesk.Revit.DB;
+using GvcRevitPlugins.TerrainCheck;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -8,6 +9,28 @@ namespace GvcRevitPlugins.Shared.Utils
 {
     public static class XYZUtils
     {
+        public static bool IsFacingInside(Face face, Element element)
+        {
+            BoundingBoxXYZ bbox = element.get_BoundingBox(null);
+            XYZ center = (bbox.Min + bbox.Max) * 0.5;
+
+            Mesh mesh = face.Triangulate();
+            XYZ faceOrigin = new XYZ(
+                mesh.Vertices.Average(v => v.X),
+                mesh.Vertices.Average(v => v.Y),
+                mesh.Vertices.Average(v => v.Z)
+            );
+
+            UV uv = new UV(0.5, 0.5);
+            XYZ faceNormal = face.ComputeNormal(uv).Normalize();
+
+            XYZ directionToCenter = (center - faceOrigin).Normalize();
+
+            double dot = faceNormal.DotProduct(directionToCenter);
+
+            return dot < -0.5;
+        }
+
         public static double UpOrDown(XYZ A, XYZ B)
         {
             try
@@ -595,6 +618,64 @@ namespace GvcRevitPlugins.Shared.Utils
                 else
                     throw new ArgumentException("Curve type not supported for unbound conversion.");
             }
+        }
+
+        public static void _Face(Document doc, IEnumerable<Face> faces, Color color = null, int transparency = 0)
+        {
+            foreach (Face face in faces)
+                _Face(doc, face, color, transparency);
+        }
+
+        public static void _Face(Document doc, Face face, Color color = null, int transparency = 0)
+        {
+            if (face == null) return;
+            if (!doc.IsModifiable)
+            {
+                using (Transaction transaction = new Transaction(doc, "Draw Face"))
+                {
+                    transaction.Start();
+                    Execute();
+                    transaction.Commit();
+                }
+                return;
+            }
+            Execute();
+            void Execute()
+            {
+                CreateDummyFaces(doc, face, out Solid solid);
+                if (solid == null) return;
+                Element element;
+                ElementUtils.AddSolidWithColor(doc, solid, color ?? new Color(0, 255, 0), transparency, out element, true);
+            }
+        }
+
+        private static Face[] CreateDummyFaces(Document doc, Face face, out Solid solid)
+        {
+            solid = null;
+            var dummy = new List<Face>();
+
+            if (face == null) return null;
+
+            IList<CurveLoop> loops = face.GetEdgesAsCurveLoops();
+            if (loops == null || loops.Count == 0)
+                return null;
+
+            XYZ normal = face.ComputeNormal(new UV(0.5, 0.5)).Normalize();
+
+            double thickness = 0.01;
+
+            Solid extrusion = GeometryCreationUtilities.CreateExtrusionGeometry(
+                loops.ToList(),
+                normal,
+                thickness
+            );
+
+            solid = extrusion;
+
+            if (extrusion != null)
+                dummy.AddRange(extrusion.Faces.OfType<Face>());
+
+            return dummy.ToArray();
         }
     }
 

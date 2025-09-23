@@ -68,8 +68,25 @@ namespace GvcRevitPlugins.TerrainCheck.Commands
 
                 var faceMesh = (selectedFace as Face).Triangulate().get_Transformed(rotation).get_Transformed(translation);
                 TerrainCheckApp._thisApp.Store.IntersectionGeometricObject = faceMesh;
+
+                //int length = 10;
+
+                //XYZ faceNormal = (selectedFace as Face).ComputeNormal(new UV(-0.5, -0.5));
+                //XYZ center = (selectedFace as Face).Evaluate(new UV(0.5, 0.5));
+
+                //center = rotation.OfPoint(center);
+                //center = translation.OfPoint(center);
+
+                //utils.Draw._XYZ(doc, center);
+
+                //XYZ endPoint = center + faceNormal.Normalize() * length;
+
+                //Curve debugLine = Line.CreateBound(center, endPoint);
+                //utils.Draw._Curve(doc, debugLine);
+
+                //Material material = doc.GetElement((selectedFace as Face).MaterialElementId) as Material;
+                //TaskDialog.Show("------",$"{material.Name}");
             }
         }
     }
 } 
-  

@@ -118,43 +118,65 @@ namespace GvcRevitPlugins.TerrainCheck
             }
 
             Execute();
-        } 
+        }
 
 
         private void Execute()
         {
             List<WallResult_> wallResults = new List<WallResult_>();
-            List<WallResult_> connectedSlopePoints = new List<WallResult_>();
+            List<string> errorLines = new List<string>();
 
             foreach (LineResult lineResult in LineResults)
-            { 
+            {
                 Element element = lineResult.Element;
-                List<XYZ> subdivisons = utils.XYZUtils.DivideCurvesEvenly(new List<Line> { lineResult.line }, TerrainCheckApp._thisApp.Store.SubdivisionLevel);
-                if (subdivisons == null || subdivisons.Count == 0)
+                List<XYZ> subdivisions = utils.XYZUtils.DivideCurvesEvenly(
+                    new List<Line> { lineResult.line },
+                    TerrainCheckApp._thisApp.Store.SubdivisionLevel
+                );
+
+                if (subdivisions == null || subdivisions.Count == 0)
+                {
+                    errorLines.Add($"Linha {lineResult.line.Id}: não foi possível subdividir.");
                     continue;
+                }
 
-                // Save the subdivided points for later processing
-                LinesSubdivions.AddRange(subdivisons);
+                LinesSubdivions.AddRange(subdivisions);
 
-                // project lines to faces
-                ProjectionResult[] projectedPoints = ProjectLinesToFaces(subdivisons);
+                ProjectionResult[] projectedPoints = ProjectLinesToFaces(subdivisions);
                 if (projectedPoints == null || projectedPoints.Length == 0)
+                {
+                    errorLines.Add($"Linha {lineResult.line.Id}: não foi possível projetar os pontos no terreno.");
                     continue;
+                }
 
-                // Process the projected points to get slope points
                 WallResult_[] slopePoints = SlopePoints(projectedPoints, element, TerrainCheckApp._thisApp.Store.PlatformElevation, true);
                 if (slopePoints == null || slopePoints.Length == 0)
+                {
+                    errorLines.Add($"Linha {lineResult.line.Id}: não foi possível calcular os pontos de declive.");
                     continue;
+                }
 
                 wallResults.AddRange(slopePoints);
             }
 
-            connectedSlopePoints = ConnectPoints(wallResults.ToArray()).ToList();
+            if (wallResults.Count == 0)
+            {
+                // Nenhuma linha funcionou
+                string allErrors = errorLines.Count > 0 ? string.Join("\n", errorLines) : "Nenhuma linha pôde ser processada.";
+                TaskDialog.Show("Erros de Processamento", allErrors);
+                return;
+            }
+
+            if (errorLines.Count > 0)
+            {
+                TaskDialog.Show("Aviso", $"Algumas linhas não puderam ser processadas:\n{string.Join("\n", errorLines)}");
+            }
+
+            List<WallResult_> connectedSlopePoints = ConnectPoints(wallResults.ToArray()).ToList();
             if (connectedSlopePoints == null || connectedSlopePoints.Count == 0)
                 return;
 
-            // Create extruded walls from the connected slope points
-            CreateExtrudedWallFromCurves(connectedSlopePoints.ToArray()); 
+            CreateExtrudedWallFromCurves(connectedSlopePoints.ToArray());
         }
 
         private WallResult_[] SlopePoints(IEnumerable<ProjectionResult> projections, Element reference, double baseElevation, bool project = true)
@@ -272,6 +294,7 @@ namespace GvcRevitPlugins.TerrainCheck
         {
             var dummy = new List<Face>();
             GeometryObject geometryObject = TerrainCheckApp._thisApp.Store.IntersectionGeometricObject;
+            Face face = geometryObject as Face;
             Mesh mesh = geometryObject as Mesh;
 
             if (mesh == null || mesh.Vertices.Count < 4) return;
@@ -302,11 +325,23 @@ namespace GvcRevitPlugins.TerrainCheck
             Solid extrusion = GeometryCreationUtilities.CreateExtrusionGeometry(
                 new List<CurveLoop> { faceLoop },
                 normal,  
-                0.1
+                0.01
             );
 
-            var faces = extrusion.Faces;
-            dummy.AddRange(faces.OfType<Face>());
+            //filter Faces that point to the same normal as the original face
+            var validFaces = new List<Face>();
+            foreach (Face f in extrusion.Faces)
+            {
+                XYZ faceNormal = utils.XYZUtils.FaceNormal(f, out _);
+                if (faceNormal != null && faceNormal.DotProduct(normal) > 0.9)
+                {
+                    validFaces.Add(f);
+                }
+            }
+
+            if (validFaces.Count > 0)
+                dummy.AddRange(validFaces);
+
             Faces = dummy.ToArray();
         }
 
@@ -323,7 +358,7 @@ namespace GvcRevitPlugins.TerrainCheck
                     var baseStart = wall.wallCurve.GetEndPoint(0);
                     var baseEnd = wall.wallCurve.GetEndPoint(1);
 
-                    double height = UnitUtils.ConvertToInternalUnits(10, UnitTypeId.Feet);
+                    double height = UnitUtils.ConvertToInternalUnits(wall.wallHeight, UnitTypeId.Feet);
 
                     height = height < 0 ? -height : height;
                     var up = XYZ.BasisZ.Multiply(height);
@@ -343,7 +378,7 @@ namespace GvcRevitPlugins.TerrainCheck
                     Solid wallSolid = GeometryCreationUtilities.CreateExtrusionGeometry(
                         loops,
                         (p2 - p1).CrossProduct(up).Normalize(),
-                        0.1
+                        0.01
                     );
 
                     var color = new Color(255, 0, 0); // vermelho
@@ -372,13 +407,13 @@ namespace GvcRevitPlugins.TerrainCheck
                     uidoc.Selection.SetElementIds(createdIds);
                     Document.ActiveView.IsolateElementsTemporary(createdIds);
 
-                    var tgm = TemporaryGraphicsManager.GetTemporaryGraphicsManager(Document);
-                    var ogs = new OverrideGraphicSettings()
-                        .SetProjectionLineColor(new Color(0, 255, 0)) // verde
-                        .SetSurfaceTransparency(30);                  // semitransparente
+                    //var tgm = TemporaryGraphicsManager.GetTemporaryGraphicsManager(Document);
+                    //var ogs = new OverrideGraphicSettings()
+                    //    .SetProjectionLineColor(new Color(0, 255, 0)) // verde
+                    //    .SetSurfaceTransparency(30);                  // semitransparente
 
-                    foreach (var id in createdIds)
-                        Document.ActiveView.SetElementOverrides(id, ogs);
+                    //foreach (var id in createdIds)
+                    //    Document.ActiveView.SetElementOverrides(id, ogs);
                 }
 
                 tx.Commit();
@@ -464,12 +499,15 @@ namespace GvcRevitPlugins.TerrainCheck
                     XYZ normal = utils.XYZUtils.FaceNormal(face, out _);
                     if (normal == null) continue;
 
-                    // Vetor do ponto até a face (usando o ponto mais próximo da face ou ponto central da face)
+                    if (utils.XYZUtils.IsFacingInside(face, Element))
+                        normal = -normal;
+
                     XYZ vectorToFace = (face.Evaluate(new UV(0.5, 0.5)) - startPoint).Normalize();
 
-                    // Se a normal estiver apontando para o lado oposto, ignorar
                     if (normal.DotProduct(vectorToFace) <= 0)
+                    {
                         continue;
+                    }
 
                     Line horizontalLine = utils.XYZUtils.GetLongestHorizontalEdge(face);
                     if (horizontalLine == null) continue;
@@ -563,6 +601,8 @@ namespace GvcRevitPlugins.TerrainCheck
                     faces.RemoveAt(i);
                 }
             }
+
+            //utils.Draw._Face(Document, faces, new Color(255, 0, 0), 70);
 
             return faces.ToArray();
         }

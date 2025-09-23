@@ -21,41 +21,44 @@ namespace GvcRevitPlugins.TerrainCheck.Commands
         {
             double? lowestZ = null;
 
-            if (TerrainCheckApp._thisApp.Store.IntersectionGeometricObject is Mesh faceMesh)
+            if (TerrainCheckApp._thisApp.Store.PlatformElevation == 0)
             {
-                foreach (XYZ vertex in faceMesh.Vertices)
+                if (TerrainCheckApp._thisApp.Store.IntersectionGeometricObject is Mesh faceMesh)
                 {
-                    if (lowestZ == null || vertex.Z < lowestZ.Value)
-                        lowestZ = vertex.Z;
-                }
-            } 
-            else
-            {
-                Element element = TerrainCheckApp._thisApp.Store.Element;
-                Face[] faces = GetElementFaces(element);
-
-                if (faces != null && faces.Length > 0)
-                {
-                    foreach (Face face in faces)
+                    foreach (XYZ vertex in faceMesh.Vertices)
                     {
-                        Mesh mesh = face.Triangulate();
-                        foreach (XYZ vertex in mesh.Vertices) 
+                        if (lowestZ == null || vertex.Z < lowestZ.Value)
+                            lowestZ = vertex.Z;
+                    }
+                }
+                else
+                {
+                    Element element = TerrainCheckApp._thisApp.Store.Element;
+                    Face[] faces = GetElementFaces(element);
+
+                    if (faces != null && faces.Length > 0)
+                    {
+                        foreach (Face face in faces)
                         {
-                            if (lowestZ == null || vertex.Z < lowestZ.Value)
-                                lowestZ = vertex.Z;
+                            Mesh mesh = face.Triangulate();
+                            foreach (XYZ vertex in mesh.Vertices)
+                            {
+                                if (lowestZ == null || vertex.Z < lowestZ.Value)
+                                    lowestZ = vertex.Z;
+                            }
                         }
                     }
                 }
-            }
 
-            if (lowestZ.HasValue)
-            {
-                double lowestZInMeters = UnitUtils.ConvertFromInternalUnits(lowestZ.Value, UnitTypeId.Meters);
-                TerrainCheckApp._thisApp.Store.PlatformElevation = (int)Math.Ceiling(lowestZInMeters);
-            }
-            else
-            {
-                TerrainCheckApp._thisApp.Store.PlatformElevation = 0;
+                if (lowestZ.HasValue)
+                {
+                    double lowestZInMeters = UnitUtils.ConvertFromInternalUnits(lowestZ.Value, UnitTypeId.Meters);
+                    TerrainCheckApp._thisApp.Store.PlatformElevation = (int)Math.Ceiling(lowestZInMeters);
+                }
+                else
+                {
+                    TerrainCheckApp._thisApp.Store.PlatformElevation = 0;
+                }
             }
 
             // demarcar objetos ao gerar (ok)
