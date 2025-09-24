@@ -28,7 +28,7 @@ namespace GvcRevitPlugins.Shared.Utils
 
             double dot = faceNormal.DotProduct(directionToCenter);
 
-            return dot < -0.5;
+            return dot < 0;
         }
 
         public static double UpOrDown(XYZ A, XYZ B)
@@ -385,9 +385,64 @@ namespace GvcRevitPlugins.Shared.Utils
                 shape.AppendShape(new List<GeometryObject> { geo });
                 shape.Name = "Colored Solid";
                 Draw.directShapes.Add(shape);
+                AddParameters(new Dictionary<string, string>
+                {
+                    {"GvcCreatedBy", "GvcRevitPlugins" },
+                    {"GvcPluginName", "TerrainCheck" },
+                    {"GvcCreationDate", DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss") },
+                    {"GvcColor", $"{color.Red},{color.Green},{color.Blue}" },
+                    {"GvcTransparency", transparency.ToString() },
+                    {"GvcMaterialId", material.Id.ToString() },
+                    {"GvcMaterialName", material.Name },
+                    {"GvcInternalName", "GenericSolid" },
+                    {"GvcName", "Demarcador de resultado" }
+                }, shape, doc);
             }
 
             return geo;
+        }
+
+        public static void AddParameters(Dictionary<string, string> parameters, Element element, Document document)
+        {
+            if (element == null || parameters == null || parameters.Count == 0)
+                return;
+
+            foreach (var kvp in parameters)
+            {
+                string paramName = kvp.Key;
+                string paramValue = kvp.Value;
+
+                Parameter param = element.LookupParameter(paramName);
+
+                if (param == null)
+                    continue;
+
+                if (param.IsReadOnly)
+                    continue;
+
+                switch (param.StorageType)
+                {
+                    case StorageType.String:
+                        param.Set(paramValue);
+                        break;
+
+                    case StorageType.Double:
+                        if (double.TryParse(paramValue, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out double dVal))
+                            param.Set(dVal);
+                        break;
+
+                    case StorageType.Integer:
+                        if (int.TryParse(paramValue, out int iVal))
+                            param.Set(iVal);
+                        break;
+
+                    case StorageType.ElementId:
+                        break;
+
+                    default:
+                        break;
+                }
+            }
         }
     }
 

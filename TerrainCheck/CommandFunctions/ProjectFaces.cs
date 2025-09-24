@@ -120,15 +120,17 @@ namespace GvcRevitPlugins.TerrainCheck
             Execute();
         }
 
-
         private void Execute()
         {
             List<WallResult_> wallResults = new List<WallResult_>();
-            List<string> errorLines = new List<string>();
+            List<string> errorMessages = new List<string>();
 
             foreach (LineResult lineResult in LineResults)
             {
                 Element element = lineResult.Element;
+                string lineId = lineResult.line?.Id.ToString() ?? "(ID desconhecido)";
+                double lineLength = lineResult.line?.Length ?? 0;
+
                 List<XYZ> subdivisions = utils.XYZUtils.DivideCurvesEvenly(
                     new List<Line> { lineResult.line },
                     TerrainCheckApp._thisApp.Store.SubdivisionLevel
@@ -136,7 +138,11 @@ namespace GvcRevitPlugins.TerrainCheck
 
                 if (subdivisions == null || subdivisions.Count == 0)
                 {
-                    errorLines.Add($"Linha {lineResult.line.Id}: não foi possível subdividir.");
+                    errorMessages.Add(
+                        $"Linha {lineId} (comprimento: {lineLength:F2}): não foi possível subdividir.\n" +
+                        $"- Possíveis causas: linha muito curta, inválida ou subdivisão definida muito densa.\n" +
+                        $"- Verifique se a linha está em um plano válido e se o nível de subdivisão ({TerrainCheckApp._thisApp.Store.SubdivisionLevel}) não é exagerado."
+                    );
                     continue;
                 }
 
@@ -145,14 +151,27 @@ namespace GvcRevitPlugins.TerrainCheck
                 ProjectionResult[] projectedPoints = ProjectLinesToFaces(subdivisions);
                 if (projectedPoints == null || projectedPoints.Length == 0)
                 {
-                    errorLines.Add($"Linha {lineResult.line.Id}: não foi possível projetar os pontos no terreno.");
+                    errorMessages.Add(
+                        $"Linha {lineId} (pontos gerados: {subdivisions.Count}): não foi possível projetar os pontos sobre a topografia.\n" +
+                        $"- Possíveis causas: superfície de terreno não encontrada, faces do terreno inacessíveis ou pontos fora do alcance.\n" +
+                        $"- Sugestão: verifique se existe topografia no modelo e se a linha não está fora da área do terreno."
+                    );
                     continue;
                 }
 
-                WallResult_[] slopePoints = SlopePoints(projectedPoints, element, TerrainCheckApp._thisApp.Store.PlatformElevation, true);
+                WallResult_[] slopePoints = SlopePoints(
+                    projectedPoints,
+                    element,
+                    TerrainCheckApp._thisApp.Store.PlatformElevation,
+                    true
+                );
                 if (slopePoints == null || slopePoints.Length == 0)
                 {
-                    errorLines.Add($"Linha {lineResult.line.Id}: não foi possível calcular os pontos de declive.");
+                    errorMessages.Add(
+                        $"Linha {lineId}: não foi possível calcular os pontos de declive a partir da projeção.\n" +
+                        $"- Possíveis causas: pontos projetados em níveis inválidos ou falha no cálculo de declividade.\n" +
+                        $"- Sugestão: verifique se a elevação de plataforma ({TerrainCheckApp._thisApp.Store.PlatformElevation}) está correta e se a linha não está totalmente plana."
+                    );
                     continue;
                 }
 
@@ -161,20 +180,30 @@ namespace GvcRevitPlugins.TerrainCheck
 
             if (wallResults.Count == 0)
             {
-                // Nenhuma linha funcionou
-                string allErrors = errorLines.Count > 0 ? string.Join("\n", errorLines) : "Nenhuma linha pôde ser processada.";
-                TaskDialog.Show("Erros de Processamento", allErrors);
+                string allErrors = errorMessages.Count > 0
+                    ? string.Join("\n\n", errorMessages)
+                    : "Nenhuma linha pôde ser processada. Verifique se há linhas válidas no modelo.";
+                TaskDialog.Show("Falha no Processamento", allErrors);
                 return;
             }
 
-            if (errorLines.Count > 0)
+            if (errorMessages.Count > 0)
             {
-                TaskDialog.Show("Aviso", $"Algumas linhas não puderam ser processadas:\n{string.Join("\n", errorLines)}");
+                TaskDialog.Show(
+                    "Aviso - Processamento Parcial",
+                    $"Algumas linhas não puderam ser processadas completamente:\n\n{string.Join("\n\n", errorMessages)}"
+                );
             }
 
             List<WallResult_> connectedSlopePoints = ConnectPoints(wallResults.ToArray()).ToList();
             if (connectedSlopePoints == null || connectedSlopePoints.Count == 0)
+            {
+                TaskDialog.Show(
+                    "Aviso",
+                    "Nenhum ponto conectado foi gerado a partir das linhas processadas. Verifique se as linhas estão contínuas e próximas entre si."
+                );
                 return;
+            }
 
             CreateExtrudedWallFromCurves(connectedSlopePoints.ToArray());
         }
