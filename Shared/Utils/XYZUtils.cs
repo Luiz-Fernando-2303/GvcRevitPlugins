@@ -704,6 +704,101 @@ namespace GvcRevitPlugins.Shared.Utils
             }
         }
 
+        public static void _Line(Document doc, Line line, Color color = null, double thickness = 0.01, double height = 0.1)
+        {
+            if (line == null || line.Length < doc.Application.ShortCurveTolerance)
+                return;
+
+            if (!doc.IsModifiable)
+            {
+                using (Transaction transaction = new Transaction(doc, "Draw Line"))
+                {
+                    transaction.Start();
+                    Execute();
+                    transaction.Commit();
+                }
+                return;
+            }
+
+            Execute();
+
+            void Execute()
+            {
+                color ??= new Color(255, 255, 255);
+
+                XYZ start = line.GetEndPoint(0);
+                XYZ end = line.GetEndPoint(1);
+                XYZ direction = (end - start).Normalize();
+
+                XYZ up = XYZ.BasisZ;
+                if (Math.Abs(direction.DotProduct(up)) > 0.999)
+                    up = XYZ.BasisY;
+
+                XYZ perp = direction.CrossProduct(up).Normalize();
+                XYZ offset = perp * (thickness / 2);
+
+                List<Curve> profile = new List<Curve>
+                {
+                    Line.CreateBound(start + offset, start - offset),
+                    Line.CreateBound(start - offset, end - offset),
+                    Line.CreateBound(end - offset, end + offset),
+                    Line.CreateBound(end + offset, start + offset)
+                };
+
+                CurveLoop loop = CurveLoop.Create(profile);
+
+                XYZ extrusionDir = up;
+                Solid solid = GeometryCreationUtilities.CreateExtrusionGeometry(new List<CurveLoop> { loop }, extrusionDir, height);
+
+                string materialName = $"LineColor_{color.Red}_{color.Green}_{color.Blue}";
+                Material material = new FilteredElementCollector(doc)
+                    .OfClass(typeof(Material))
+                    .Cast<Material>()
+                    .FirstOrDefault(m => m.Name == materialName);
+
+                if (material == null)
+                {
+                    material = (Material)doc.GetElement(Material.Create(doc, materialName));
+                    material.Color = color;
+                    material.Transparency = 0;
+                    material.Shininess = 128;
+                }
+
+                TessellatedShapeBuilder tsb = new TessellatedShapeBuilder();
+                tsb.OpenConnectedFaceSet(true);
+
+                foreach (Face face in solid.Faces)
+                {
+                    Mesh mesh = face.Triangulate();
+                    for (int i = 0; i < mesh.NumTriangles; i++)
+                    {
+                        MeshTriangle tri = mesh.get_Triangle(i);
+                        IList<XYZ> triangle = new List<XYZ>
+                        {
+                            tri.get_Vertex(0),
+                            tri.get_Vertex(1),
+                            tri.get_Vertex(2)
+                        };
+                        TessellatedFace tFace = new TessellatedFace(triangle, material.Id);
+                        if (tsb.DoesFaceHaveEnoughLoopsAndVertices(tFace))
+                            tsb.AddFace(tFace);
+                    }
+                }
+
+                tsb.CloseConnectedFaceSet();
+                tsb.Target = TessellatedShapeBuilderTarget.AnyGeometry;
+                tsb.Fallback = TessellatedShapeBuilderFallback.Mesh;
+                tsb.Build();
+
+                GeometryObject geo = tsb.GetBuildResult().GetGeometricalObjects().First();
+                DirectShape shape = DirectShape.CreateElement(doc, new ElementId(BuiltInCategory.OST_GenericModel));
+                shape.AppendShape(new List<GeometryObject> { geo });
+                shape.Name = "LineShape";
+
+                directShapes.Add(shape);
+            }
+        }
+
         private static Face[] CreateDummyFaces(Document doc, Face face, out Solid solid)
         {
             solid = null;

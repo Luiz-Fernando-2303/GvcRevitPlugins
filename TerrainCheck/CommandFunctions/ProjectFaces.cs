@@ -56,14 +56,20 @@ namespace GvcRevitPlugins.TerrainCheck
         public double wallHeight { get; set; }
 
         /// <summary>
+        /// O offset total aplicado ao ponto projetado para determinar a altura da parede.
+        /// </summary>
+        public double totalOffset { get; set; }
+
+        /// <summary>
         /// Localização da parade na vista
         /// </summary>
         public Curve wallCurve { get; set; }
 
-        public WallResult_(XYZ point, double wallHeight)
+        public WallResult_(XYZ point, double wallHeight, double totalOffset)
         {
             this.resultPoint = point;
             this.wallHeight = wallHeight;
+            this.totalOffset = totalOffset;
         }
     }
 
@@ -206,6 +212,22 @@ namespace GvcRevitPlugins.TerrainCheck
             }
 
             CreateExtrudedWallFromCurves(connectedSlopePoints.ToArray());
+
+            using (Transaction transaction = new Transaction(Document, "Draw Line"))
+            {
+                transaction.Start();
+                var segments = ConnectionSegments(connectedSlopePoints);
+                foreach (var segment in segments)
+                {
+                    var worstLines = BuildWorstLines(segment.ToList(), Document);
+                    if (worstLines != null)
+                    {
+                        foreach (var line in worstLines)
+                            utils.Draw._Line(Document, line, new Color(255, 50, 0), 0.01, 2);
+                    }
+                }
+                transaction.Commit();
+            }
         }
 
         private WallResult_[] SlopePoints(IEnumerable<ProjectionResult> projections, Element reference, double baseElevation, bool project = true)
@@ -277,7 +299,7 @@ namespace GvcRevitPlugins.TerrainCheck
                     if (project)
                         finalPoint = utils.XYZUtils.ProjectPointOntoTopography(TerrainFaces, movedPoint);
 
-                    WallResult_ slopeResult = new WallResult_(finalPoint, wallHeight);
+                    WallResult_ slopeResult = new WallResult_(finalPoint, wallHeight, totalOffset);
                     slopeResult.PlatoHeightPoint = new XYZ(movedPoint.X, movedPoint.Y, UnitUtils.ConvertToInternalUnits(baseElevation, UnitTypeId.Meters));
 
                     if (slopeResult.resultPoint == null || project == false)
@@ -433,8 +455,8 @@ namespace GvcRevitPlugins.TerrainCheck
 
                     createdIds.AddRange(TerrainCheckApp._thisApp.Store.TerrainBoundaryIds);
 
-                    uidoc.Selection.SetElementIds(createdIds);
-                    Document.ActiveView.IsolateElementsTemporary(createdIds);
+                    //uidoc.Selection.SetElementIds(createdIds);
+                    //Document.ActiveView.IsolateElementsTemporary(createdIds);
 
                     //var tgm = TemporaryGraphicsManager.GetTemporaryGraphicsManager(Document);
                     //var ogs = new OverrideGraphicSettings()
@@ -635,5 +657,84 @@ namespace GvcRevitPlugins.TerrainCheck
 
             return faces.ToArray();
         }
+
+        private List<WallResult_[]> ConnectionSegments(List<WallResult_> wallResults)
+        {
+            List<WallResult_[]> segments = new List<WallResult_[]>();
+            List<WallResult_> currentSegment = new List<WallResult_>();
+            for (int i = 0; i < wallResults.Count; i++)
+            {
+                WallResult_ currentPoint = wallResults[i];
+                if (currentSegment.Count == 0)
+                {
+                    currentSegment.Add(currentPoint);
+                }
+                else
+                {
+                    WallResult_ lastPoint = currentSegment.Last();
+                    double distance = lastPoint.PlatoHeightPoint.DistanceTo(currentPoint.PlatoHeightPoint);
+                    if (distance <= 20)
+                    {
+                        currentSegment.Add(currentPoint);
+                    }
+                    else
+                    {
+                        if (currentSegment.Count >= 2)
+                        {
+                            segments.Add(currentSegment.ToArray());
+                        }
+                        currentSegment = new List<WallResult_> { currentPoint };
+                    }
+                }
+            }
+            if (currentSegment.Count >= 2)
+            {
+                segments.Add(currentSegment.ToArray());
+            }
+            return segments;
+        }
+
+        private List<Line> BuildWorstLines(List<WallResult_> segment, Document doc)
+        {
+            List<Line> lines = new List<Line>();
+
+            if (segment == null || segment.Count < 2)
+                return lines;
+
+            WallResult_ worst = segment.OrderByDescending(w => w.totalOffset).FirstOrDefault();
+            WallResult_ first = segment.First();
+
+            if (worst == null || first == null)
+                return lines;
+
+            XYZ overallDirection = (segment.Last().PlatoHeightPoint - first.PlatoHeightPoint).Normalize();
+            XYZ lateral = new XYZ(-overallDirection.Y, overallDirection.X, 0).Normalize();
+
+            XYZ toWorst = worst.PlatoHeightPoint - first.PlatoHeightPoint;
+            double lateralOffset = toWorst.DotProduct(lateral);
+
+            int step = 5;
+
+            for (int i = 0; i < segment.Count - 1; i += step)
+            {
+                int endIdx = Math.Min(i + step, segment.Count - 1);
+
+                XYZ pStart = segment[i].PlatoHeightPoint;
+                XYZ pEnd = segment[endIdx].PlatoHeightPoint;
+
+                XYZ newStart = pStart + lateral * lateralOffset;
+                XYZ newEnd = pEnd + lateral * lateralOffset;
+
+                Line movedLine = Line.CreateBound(newStart, newEnd);
+
+                if (movedLine.Length >= doc.Application.ShortCurveTolerance)
+                {
+                    lines.Add(movedLine);
+                }
+            }
+
+            return lines;
+        }
+
     }
 }

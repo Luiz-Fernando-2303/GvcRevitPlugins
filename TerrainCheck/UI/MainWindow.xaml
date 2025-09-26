@@ -72,15 +72,10 @@
         <Grid Margin="16">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto"/>
-                <!-- Cabeçalho -->
                 <RowDefinition Height="15"/>
-                <!-- Separador -->
                 <RowDefinition Height="*"/>
-                <!-- Conteúdo principal expande -->
                 <RowDefinition Height="15"/>
-                <!-- Separador final -->
                 <RowDefinition Height="Auto"/>
-                <!-- Resultado -->
             </Grid.RowDefinitions>
 
             <!-- Cabeçalho -->
@@ -112,9 +107,7 @@
             <Grid Grid.Row="2">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
-                    <!-- Cálculo do desnível / altura do arrimo -->
                     <RowDefinition Height="Auto"/>
-                    <!-- Parâmetros -->
                 </Grid.RowDefinitions>
 
                 <!-- Cálculo do desnível / altura do arrimo -->
@@ -130,10 +123,22 @@
                             <RowDefinition Height="Auto" />
                         </Grid.RowDefinitions>
 
-                        <!-- Botões e combos -->
+                        <!-- Botão Objeto (agora à esquerda) -->
                         <StackPanel Orientation="Horizontal" Grid.Row="0" Grid.Column="0" Margin="0 0 8 0">
+                            <Button Style="{StaticResource MaterialDesignRaisedAccentButton}" Command="{Binding GetTerrainInfoCommand}" Height="32" VerticalAlignment="Top" ToolTip="Selecione a família ou a face da edificação a ser verificada.">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Margin="4 0">Objeto</TextBlock>
+                                    <materialDesign:PackIcon Kind="CheckboxMarkedCircleOutline" Margin="4 0" VerticalAlignment="Center" />
+                                </StackPanel>
+                            </Button>
+                            <ComboBox x:Name="selectionType_" Width="110" Margin="8 0 0 0" SelectedValue="{Binding Store.ObjectSelectionType, UpdateSourceTrigger=PropertyChanged}" SelectedValuePath="Content" VerticalAlignment="Center" SelectionChanged="ComboBox_SelectionChanged">
+                                <ComboBoxItem Content="Família" />
+                                <ComboBoxItem Content="Face" />
+                            </ComboBox>
+                        </StackPanel>
 
-                            <!-- Botão TreeView -->
+                        <!-- Botão Linha de Divisa (agora à direita) -->
+                        <StackPanel Orientation="Horizontal" Grid.Row="0" Grid.Column="1" Margin="8 0 0 0">
                             <Button x:Name="ToggleTreeButton" MinWidth="104" Margin="0 0 8 0" Padding="12 4" Click="ToggleTreeButton_Click" VerticalAlignment="Center" HorizontalAlignment="Left" MaxWidth="300" ToolTip="Selecione o tipo do elemento para cálculo do afastamento mínimo.">
                                 <Button.Content>
                                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
@@ -159,27 +164,12 @@
                                 </Border>
                             </Popup>
 
-                            <!-- Botão Contenção -->
                             <Button Command="{Binding SetTerrainBoundaryId}" Style="{StaticResource MaterialDesignOutlinedButton}" ToolTip="Selecione o elemento para cálculo do afastamento mínimo">
                                 <StackPanel Orientation="Horizontal">
                                     <TextBlock Margin="4 0">Selecionar tipo</TextBlock>
                                     <materialDesign:PackIcon Kind="AlertCircleOutline" Margin="4 0" VerticalAlignment="Center" />
                                 </StackPanel>
                             </Button>
-                        </StackPanel>
-
-                        <!-- Botão e combo Objeto -->
-                        <StackPanel Orientation="Horizontal" Grid.Row="0" Grid.Column="1" Margin="8 0 0 0">
-                            <Button Style="{StaticResource MaterialDesignRaisedAccentButton}" Command="{Binding GetTerrainInfoCommand}" Height="32" VerticalAlignment="Top" ToolTip="Selecione a família ou a face da edificação a ser verificada.">
-                                <StackPanel Orientation="Horizontal">
-                                    <TextBlock Margin="4 0">Objeto</TextBlock>
-                                    <materialDesign:PackIcon Kind="CheckboxMarkedCircleOutline" Margin="4 0" VerticalAlignment="Center" />
-                                </StackPanel>
-                            </Button>
-                            <ComboBox x:Name="selectionType_" Width="110" Margin="8 0 0 0" SelectedValue="{Binding Store.ObjectSelectionType, UpdateSourceTrigger=PropertyChanged}" SelectedValuePath="Content" VerticalAlignment="Center" SelectionChanged="ComboBox_SelectionChanged">
-                                <ComboBoxItem Content="Família" />
-                                <ComboBoxItem Content="Face" />
-                            </ComboBox>
                         </StackPanel>
 
                         <!-- Campo de elevação do platô -->
@@ -198,7 +188,7 @@
                     <TextBlock Text="Parâmetros" Style="{StaticResource SectionTitle}" />
                     <TextBlock Text="Aumente a precisão do resultado em caso de cálculo do afastamento entre edificação e uma divisa em terreno natural, por exemplo." Margin="0 4 0 8" Style="{StaticResource SectionSubtitle}" TextWrapping="Wrap" />
 
-                    <!-- Precisão do resultado -->
+                    <!-- Precisão -->
                     <DockPanel Margin="0 8 0 0">
                         <TextBlock DockPanel.Dock="Left" VerticalAlignment="Center">Precisão do resultado</TextBlock>
                         <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center" HorizontalAlignment="Right">
@@ -207,7 +197,7 @@
                         </StackPanel>
                     </DockPanel>
 
-                    <!-- Filtrar material da edificação -->
+                    <!-- Filtro material -->
                     <TextBlock x:Name="MaterialLabel" DockPanel.Dock="Top" Margin="0 0 0 4" FontWeight="SemiBold" FontSize="14" Foreground="{DynamicResource MaterialDesignBody}" Text="Filtre o material da edificação" />
                     <Border DockPanel.Dock="Top" Width="auto" Height="150" Background="{DynamicResource MaterialDesignPaper}" CornerRadius="6" Padding="8" materialDesign:ShadowAssist.ShadowDepth="Depth1">
                         <ScrollViewer VerticalScrollBarVisibility="Auto">

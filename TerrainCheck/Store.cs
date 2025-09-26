@@ -103,7 +103,11 @@ namespace GvcRevitPlugins.TerrainCheck
                     OnPropertyChanged();
                 }
             }
-        }
+        } 
+        // objeto <-> elemento
+        // tirar isolamento
+        // pegar maior desnivel
+        // 
 
         private string Version { get; set; } = "1.3.3";
         public string Version_
