@@ -1,4 +1,5 @@
 ﻿using Autodesk.Revit.DB;
+using Autodesk.Revit.UI;
 using GvcRevitPlugins.TerrainCheck;
 using System;
 using System.Collections.Generic;
@@ -33,15 +34,10 @@ namespace GvcRevitPlugins.Shared.Utils
 
         public static double UpOrDown(XYZ A, XYZ B)
         {
-            try
-            {
-                return A.Z < B.Z ? 2.5 : 1.5;
+            if (A == null || B == null)
+                return 2.5; // Valor padrão
 
-            }
-            catch
-            {
-                return 2.5; // Valor padrão em caso de erro
-            }
+            return A.Z < B.Z ? 2.5 : 1.5;
         }
 
         public static XYZ FaceNormal(Face face, out UV surfaceUV)
@@ -224,17 +220,43 @@ namespace GvcRevitPlugins.Shared.Utils
         public static Face[] FilterTopoFaces(Document doc, ElementId toposolidId, out Toposolid toposolid)
         {
             toposolid = null;
-            var element = doc.GetElement(toposolidId);
-            if (element is not Toposolid ts) return null;
-            toposolid = ts;
 
-            var geometry = ts.get_Geometry(new Options());
+            List<Face> resultFaces = new List<Face>();
 
-            return geometry.OfType<Solid>()
-                           .Where(s => s.Faces.Size > 0)
-                           .SelectMany(s => s.Faces.Cast<Face>())
-                           .Where(f => FilterPlanes(FaceNormal(f, out UV _)))
-                           .ToArray();
+            if (toposolidId != null)
+            {
+                var element = doc.GetElement(toposolidId);
+                if (element is not Toposolid ts) return null;
+                toposolid = ts;
+
+                var geometry = ts.get_Geometry(new Options());
+
+                resultFaces.AddRange(
+                    geometry.OfType<Solid>()
+                            .Where(s => s.Faces.Size > 0)
+                            .SelectMany(s => s.Faces.Cast<Face>())
+                            .Where(f => FilterPlanes(FaceNormal(f, out UV _)))
+                );
+            }
+            else
+            {
+                FilteredElementCollector collector = new FilteredElementCollector(doc)
+                                                        .OfClass(typeof(Toposolid));
+
+                foreach (Toposolid ts in collector)
+                {
+                    var geometry = ts.get_Geometry(new Options());
+
+                    resultFaces.AddRange(
+                        geometry.OfType<Solid>()
+                                .Where(s => s.Faces.Size > 0)
+                                .SelectMany(s => s.Faces.Cast<Face>())
+                                .Where(f => FilterPlanes(FaceNormal(f, out UV _)))
+                    );
+                }
+            }
+
+            return resultFaces.ToArray();
         }
 
         public static bool FilterPlanes(XYZ normal)
@@ -760,7 +782,7 @@ namespace GvcRevitPlugins.Shared.Utils
                 {
                     material = (Material)doc.GetElement(Material.Create(doc, materialName));
                     material.Color = color;
-                    material.Transparency = 0;
+                    material.Transparency = 70;
                     material.Shininess = 128;
                 }
 
@@ -796,6 +818,64 @@ namespace GvcRevitPlugins.Shared.Utils
                 shape.Name = "LineShape";
 
                 directShapes.Add(shape);
+            }
+        }
+
+        public static void _Wall(UIDocument uiDoc, Line line, string name, Color color = null, double thickness = 0.2, double height = 3.0) 
+        {
+            Document doc = uiDoc.Document;
+
+            if (line == null || line.Length < doc.Application.ShortCurveTolerance)
+                return;
+
+            double thicknessFeet = Autodesk.Revit.DB.UnitUtils.ConvertToInternalUnits(thickness, UnitTypeId.Meters);
+            double heightFeet = Autodesk.Revit.DB.UnitUtils.ConvertToInternalUnits(height, UnitTypeId.Meters);
+
+            if (!doc.IsModifiable)
+            {
+                using (Transaction transaction = new Transaction(doc, "Draw Wall"))
+                {
+                    transaction.Start();
+                    Execute();
+                    transaction.Commit();
+                }
+            }
+            else
+            {
+                Execute();
+            }
+
+            void Execute()
+            {
+                color ??= new Color(255, 255, 255);
+
+                string wallTypeName = $"{name}";
+                WallType wallType = RevitUtils.GetOrCreateWallType(uiDoc, wallTypeName, BuiltInCategory.OST_Walls, color);
+
+                if (wallType == null)
+                    throw new InvalidOperationException("Não foi possível criar WallType.");
+
+                Level level = new FilteredElementCollector(doc)
+                    .OfClass(typeof(Level))
+                    .Cast<Level>()
+                    .OrderBy(l => l.Elevation)
+                    .FirstOrDefault();
+
+                if (level == null)
+                    throw new InvalidOperationException("Nenhum nível encontrado no projeto.");
+
+                Wall wall = Wall.Create(doc, line, wallType.Id, level.Id, heightFeet, 0, false, false);
+
+                CompoundStructure structure = wallType.GetCompoundStructure();
+                if (structure != null && structure.LayerCount > 0)
+                {
+                    List<CompoundStructureLayer> layers = new()
+                    {
+                        new CompoundStructureLayer(thicknessFeet, MaterialFunctionAssignment.Structure, wallType.GetCompoundStructure().GetLayers().First().MaterialId)
+                    };
+                    CompoundStructure newStruct = CompoundStructure.CreateSimpleCompoundStructure(layers);
+                    wallType.SetCompoundStructure(newStruct);
+                }
             }
         }
 

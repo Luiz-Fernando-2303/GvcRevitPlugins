@@ -113,6 +113,10 @@ namespace GvcRevitPlugins.TerrainCheck.UI
         {
             ArrowIcon.Text = "▼"; // seta para baixo quando fechado
         }
+
+        private void Button_Click(object sender, RoutedEventArgs e)
+        {
+        }
     }
 }
  

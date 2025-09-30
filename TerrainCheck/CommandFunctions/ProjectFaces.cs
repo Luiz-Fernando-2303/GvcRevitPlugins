@@ -4,6 +4,7 @@ using GvcRevitPlugins.TerrainCheck.UI;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Diagnostics.Metrics;
 using System.Linq;
 
 using utils = GvcRevitPlugins.Shared.Utils;
@@ -76,6 +77,7 @@ namespace GvcRevitPlugins.TerrainCheck
     public class ProjectFaces
     {
         Document Document { get; set; }
+        UIDocument Uid { get; set; }
         Element Element { get; set; }
         Curve[] Lines { get; set; }
         Face[] Faces { get; set; }
@@ -88,6 +90,7 @@ namespace GvcRevitPlugins.TerrainCheck
         public ProjectFaces(UIDocument Uidocument, ElementId elementid, Curve[] lines, List<LineResult> LineResults_, double subdivision, double baseElevation)
         {
             Document = Uidocument.Document;
+            Uid = Uidocument;
             Element = Document.GetElement(elementid);
             Lines = lines;
             LineResults = LineResults_;
@@ -96,7 +99,8 @@ namespace GvcRevitPlugins.TerrainCheck
                 .OfClass(typeof(Toposolid))
                 .Cast<Toposolid>().First();
 
-            TerrainFaces = utils.XYZUtils.FilterTopoFaces(Document, solid.Id, out _);
+            //TerrainFaces = utils.XYZUtils.FilterTopoFaces(Document, solid.Id, out _);
+            TerrainFaces = utils.XYZUtils.FilterTopoFaces(Document, null, out _);
 
             if (TerrainCheckApp._thisApp.Store.IntersectionGeometricObject == null)
             {
@@ -211,19 +215,26 @@ namespace GvcRevitPlugins.TerrainCheck
                 return;
             }
 
-            CreateExtrudedWallFromCurves(connectedSlopePoints.ToArray());
+            //CreateExtrudedWallFromCurves(connectedSlopePoints.ToArray());
 
             using (Transaction transaction = new Transaction(Document, "Draw Line"))
             {
                 transaction.Start();
-                var segments = ConnectionSegments(connectedSlopePoints);
+                var segments = ConnectSegments(connectedSlopePoints);
                 foreach (var segment in segments)
                 {
-                    var worstLines = BuildWorstLines(segment.ToList(), Document);
+                    var worstLines = BuildWorstLines(segment.ToList(), Document, 0);
                     if (worstLines != null)
                     {
                         foreach (var line in worstLines)
-                            utils.Draw._Line(Document, line, new Color(255, 50, 0), 0.01, 2);
+                            utils.Draw._Wall(
+                                Uid,
+                                line,
+                                TerrainCheck.TerrainCheckApp._thisApp.Store.BoundarySelectionType == "Arrimo"? "Arrimo" : "Talude",
+                                new Color(255, 0, 0),
+                                0.01,
+                                3
+                            );
                     }
                 }
                 transaction.Commit();
@@ -252,6 +263,7 @@ namespace GvcRevitPlugins.TerrainCheck
 
                     Line baseFlatLine = utils.XYZUtils.GetLongestHorizontalEdge(face);
                     Line baseLine = utils.XYZUtils.GetLongestHorizontalEdge(face, false);
+
                     XYZ facePoint = utils.XYZUtils.ProjectPointOntoTopography(TerrainFaces, face.Triangulate().Vertices.First());
 
                     XYZ normal = utils.XYZUtils.FaceNormal(face, out _);
@@ -265,32 +277,39 @@ namespace GvcRevitPlugins.TerrainCheck
                     XYZ intersection = intersectionArray.get_Item(0).XYZPoint;
                     XYZ transformedIntersection = new XYZ(intersection.X, intersection.Y, baseLine.GetEndPoint(0).Z);
 
-                    double wallHeight = UnitUtils.ConvertToInternalUnits(3, UnitTypeId.Meters);
+                    double wallHeight = UnitUtils.ConvertToInternalUnits(3, UnitTypeId.Feet);
+
                     double minDistance = UnitUtils.ConvertToInternalUnits(utils.XYZUtils.UpOrDown(facePoint, projectedPoint), UnitTypeId.Meters);
                     double totalOffset = 0;
 
-                    if (TerrainCheckApp._thisApp.Store.BoundarySelectionType == "Arrimo")
-                    {
-                        ElementType type = reference.Document.GetElement(reference.GetTypeId()) as ElementType;
-                        double retainWallHeight = 0;
+                    if (minDistance == UnitUtils.ConvertToInternalUnits(1.5, UnitTypeId.Meters))
+                        totalOffset = minDistance;
 
-                        if (type != null)
-                        {
-                            Parameter heightParam = type.LookupParameter("Altura Arrimo");
-                            if (heightParam != null && heightParam.HasValue)
-                            {
-                                retainWallHeight = heightParam.AsDouble();
-                            }
-                            totalOffset = retainWallHeight - 3.28;
-                        }
-                    }
                     else
                     {
-                        double verticalOffset = (projectedPoint.Z - baseElevation) / 2;
-                        verticalOffset = Math.Max(verticalOffset, minDistance);
+                        if (TerrainCheckApp._thisApp.Store.BoundarySelectionType == "Arrimo")
+                        {
+                            ElementType type = reference.Document.GetElement(reference.GetTypeId()) as ElementType;
+                            double retainWallHeight = 0;
 
-                        double inclinationOffset = Math.Abs(transformedIntersection.Z - projectedPoint.Z) / 2;
-                        totalOffset = verticalOffset + inclinationOffset;
+                            if (type != null)
+                            {
+                                Parameter heightParam = type.LookupParameter("Altura Arrimo");
+                                if (heightParam != null && heightParam.HasValue)
+                                {
+                                    retainWallHeight = heightParam.AsDouble();
+                                }
+                                totalOffset = retainWallHeight - 3.28;
+                            }
+                        }
+                        else
+                        {
+                            double verticalOffset = (projectedPoint.Z - baseElevation) / 2;
+                            verticalOffset = Math.Max(verticalOffset, minDistance);
+
+                            double inclinationOffset = Math.Abs(transformedIntersection.Z - projectedPoint.Z) / 2;
+                            totalOffset = verticalOffset + inclinationOffset;
+                        }
                     }
 
                     XYZ movedPoint = utils.XYZUtils.GetEndPoint(transformedIntersection, normal, totalOffset);
@@ -310,9 +329,11 @@ namespace GvcRevitPlugins.TerrainCheck
                     }
 
                     resultPoints.Add(slopeResult);
-
                 }
-                catch (Exception) { continue; }
+                catch
+                {
+                    continue;
+                }
 
                 currentIndex++;
                 double percentage = (double)currentIndex / totalPoints * 100;
@@ -658,10 +679,12 @@ namespace GvcRevitPlugins.TerrainCheck
             return faces.ToArray();
         }
 
-        private List<WallResult_[]> ConnectionSegments(List<WallResult_> wallResults)
+        private List<WallResult_[]> ConnectSegments(List<WallResult_> wallResults, double maxDist = 20, double maxAngleDeg = 30,double maxSegmentLength = 200)
         {
             List<WallResult_[]> segments = new List<WallResult_[]>();
             List<WallResult_> currentSegment = new List<WallResult_>();
+            double accumulatedLength = 0;
+
             for (int i = 0; i < wallResults.Count; i++)
             {
                 WallResult_ currentPoint = wallResults[i];
@@ -673,30 +696,54 @@ namespace GvcRevitPlugins.TerrainCheck
                 {
                     WallResult_ lastPoint = currentSegment.Last();
                     double distance = lastPoint.PlatoHeightPoint.DistanceTo(currentPoint.PlatoHeightPoint);
-                    if (distance <= 20)
+
+                    XYZ prevVector = (currentSegment.Count > 1)
+                        ? currentSegment.Last().PlatoHeightPoint - currentSegment[currentSegment.Count - 2].PlatoHeightPoint
+                        : null;
+
+                    XYZ currentVector = currentPoint.PlatoHeightPoint - lastPoint.PlatoHeightPoint;
+
+                    double angleDeg = 0;
+                    if (prevVector != null && prevVector.GetLength() > 1e-6 && currentVector.GetLength() > 1e-6)
+                    {
+                        double dot = prevVector.Normalize().DotProduct(currentVector.Normalize());
+                        dot = Math.Max(-1.0, Math.Min(1.0, dot));
+                        angleDeg = Math.Acos(dot) * (180.0 / Math.PI);
+                    }
+
+                    bool breakSegment = false;
+                    if (distance > maxDist) breakSegment = true;
+                    if (angleDeg > maxAngleDeg) breakSegment = true;
+                    if (accumulatedLength + distance > maxSegmentLength) breakSegment = true;
+
+                    if (!breakSegment)
                     {
                         currentSegment.Add(currentPoint);
+                        accumulatedLength += distance;
                     }
                     else
                     {
                         if (currentSegment.Count >= 2)
-                        {
                             segments.Add(currentSegment.ToArray());
-                        }
+
                         currentSegment = new List<WallResult_> { currentPoint };
+                        accumulatedLength = 0;
                     }
                 }
             }
+
             if (currentSegment.Count >= 2)
-            {
                 segments.Add(currentSegment.ToArray());
-            }
+
             return segments;
         }
 
-        private List<Line> BuildWorstLines(List<WallResult_> segment, Document doc)
+        private List<Line> BuildWorstLines(List<WallResult_> segment, Document doc, int step = 5)
         {
             List<Line> lines = new List<Line>();
+
+            if (step <= 0)
+                step = segment.Count();
 
             if (segment == null || segment.Count < 2)
                 return lines;
@@ -712,8 +759,6 @@ namespace GvcRevitPlugins.TerrainCheck
 
             XYZ toWorst = worst.PlatoHeightPoint - first.PlatoHeightPoint;
             double lateralOffset = toWorst.DotProduct(lateral);
-
-            int step = 5;
 
             for (int i = 0; i < segment.Count - 1; i += step)
             {

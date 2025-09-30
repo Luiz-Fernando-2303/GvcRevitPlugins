@@ -116,29 +116,16 @@
                     <Grid>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="auto" />
                         </Grid.ColumnDefinitions>
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" />
                         </Grid.RowDefinitions>
 
-                        <!-- Botão Objeto (agora à esquerda) -->
-                        <StackPanel Orientation="Horizontal" Grid.Row="0" Grid.Column="0" Margin="0 0 8 0">
-                            <Button Style="{StaticResource MaterialDesignRaisedAccentButton}" Command="{Binding GetTerrainInfoCommand}" Height="32" VerticalAlignment="Top" ToolTip="Selecione a família ou a face da edificação a ser verificada.">
-                                <StackPanel Orientation="Horizontal">
-                                    <TextBlock Margin="4 0">Objeto</TextBlock>
-                                    <materialDesign:PackIcon Kind="CheckboxMarkedCircleOutline" Margin="4 0" VerticalAlignment="Center" />
-                                </StackPanel>
-                            </Button>
-                            <ComboBox x:Name="selectionType_" Width="110" Margin="8 0 0 0" SelectedValue="{Binding Store.ObjectSelectionType, UpdateSourceTrigger=PropertyChanged}" SelectedValuePath="Content" VerticalAlignment="Center" SelectionChanged="ComboBox_SelectionChanged">
-                                <ComboBoxItem Content="Família" />
-                                <ComboBoxItem Content="Face" />
-                            </ComboBox>
-                        </StackPanel>
+                        <!-- NOVA ORDEM: Árvore > Botão Selecionar tipo > Dropdown > Botão objeto -->
+                        <StackPanel Orientation="Horizontal" Grid.Row="0" Margin="0 0 8 0">
 
-                        <!-- Botão Linha de Divisa (agora à direita) -->
-                        <StackPanel Orientation="Horizontal" Grid.Row="0" Grid.Column="1" Margin="8 0 0 0">
+                            <!-- Árvore de seleção (Dropdown customizado com Popup) -->
                             <Button x:Name="ToggleTreeButton" MinWidth="104" Margin="0 0 8 0" Padding="12 4" Click="ToggleTreeButton_Click" VerticalAlignment="Center" HorizontalAlignment="Left" MaxWidth="300" ToolTip="Selecione o tipo do elemento para cálculo do afastamento mínimo.">
                                 <Button.Content>
                                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
@@ -149,6 +136,7 @@
                                 </Button.Content>
                             </Button>
 
+                            <!-- Popup da Árvore -->
                             <Popup x:Name="BoundaryTreePopup" PlacementTarget="{Binding ElementName=ToggleTreeButton}" Placement="Bottom" StaysOpen="True" AllowsTransparency="True" PopupAnimation="Fade" Opened="BoundaryTreePopup_Opened" Closed="BoundaryTreePopup_Closed">
                                 <Border Background="White" Padding="8" CornerRadius="4">
                                     <TreeView SelectedItemChanged="TreeView_SelectedItemChanged">
@@ -164,16 +152,31 @@
                                 </Border>
                             </Popup>
 
-                            <Button Command="{Binding SetTerrainBoundaryId}" Style="{StaticResource MaterialDesignOutlinedButton}" ToolTip="Selecione o elemento para cálculo do afastamento mínimo">
+                            <!-- Botão Selecionar tipo -->
+                            <Button Command="{Binding SetTerrainBoundaryId}" Style="{StaticResource MaterialDesignOutlinedButton}" ToolTip="Selecione o elemento para cálculo do afastamento mínimo" Margin="0 0 8 0">
                                 <StackPanel Orientation="Horizontal">
                                     <TextBlock Margin="4 0">Selecionar tipo</TextBlock>
                                     <materialDesign:PackIcon Kind="AlertCircleOutline" Margin="4 0" VerticalAlignment="Center" />
                                 </StackPanel>
                             </Button>
+
+                            <!-- Dropdown "Família / Face" -->
+                            <ComboBox x:Name="selectionType_" Width="110" Margin="0 0 8 0" SelectedValue="{Binding Store.ObjectSelectionType, UpdateSourceTrigger=PropertyChanged}" SelectedValuePath="Content" VerticalAlignment="Center" SelectionChanged="ComboBox_SelectionChanged" SelectedIndex="0">
+                                <ComboBoxItem Content="Família" />
+                                <ComboBoxItem Content="Face" />
+                            </ComboBox>
+
+                            <!-- Botão "Objeto" -->
+                            <Button Style="{StaticResource MaterialDesignRaisedAccentButton}" Command="{Binding GetTerrainInfoCommand}" Height="32" VerticalAlignment="Top" ToolTip="Selecione a família ou a face da edificação a ser verificada." Click="Button_Click">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Margin="4 0">Objeto</TextBlock>
+                                    <materialDesign:PackIcon Kind="CheckboxMarkedCircleOutline" Margin="4 0" VerticalAlignment="Center" />
+                                </StackPanel>
+                            </Button>
                         </StackPanel>
 
                         <!-- Campo de elevação do platô -->
-                        <DockPanel Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2" Margin="0 8 0 0" LastChildFill="False">
+                        <DockPanel Grid.Row="1" Margin="0 8 0 0" LastChildFill="False">
                             <TextBlock Text="Selecionar platô da edificação:" DockPanel.Dock="Left" VerticalAlignment="Center" />
                             <TextBox Text="{Binding Store.PlatformElevation, UpdateSourceTrigger=PropertyChanged}" VerticalContentAlignment="Center" DockPanel.Dock="Right" HorizontalAlignment="Right" materialDesign:TextFieldAssist.SuffixText="m" TextAlignment="Right" Width="50" />
                             <Button DockPanel.Dock="Right" HorizontalAlignment="Right" Style="{StaticResource MaterialDesignOutlinedButton}" Margin="8 0 5 0" Width="32" Height="32" Padding="0" Command="{Binding SetPlatformElevation}">

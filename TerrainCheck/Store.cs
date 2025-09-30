@@ -109,7 +109,7 @@ namespace GvcRevitPlugins.TerrainCheck
         // pegar maior desnivel
         // 
 
-        private string Version { get; set; } = "1.3.3";
+        private string Version { get; set; } = "1.3.5";
         public string Version_
         {
             get => Version;
