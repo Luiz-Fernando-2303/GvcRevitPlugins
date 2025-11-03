@@ -18,49 +18,75 @@ namespace GvcRevitPlugins.TerrainCheck
     {
         public virtual void Execute(UIApplication uiApp)
         {
-            UIDocument uiDoc = uiApp.ActiveUIDocument;
-            Document doc = uiDoc.Document;
-
-            var store = TerrainCheckApp._thisApp?.Store;
-
-            if (store == null)
+            try
             {
-                TaskDialog.Show("Erro", "Objeto 'Store' não está inicializado.");
-                return;
-            }
+                if (uiApp == null)
+                {
+                    TaskDialog.Show("Erro", "Aplicação inválida.");
+                    return;
+                }
 
-            if (store.IntersectionElementId == null || store.IntersectionElementId == ElementId.InvalidElementId)
+                UIDocument uiDoc = uiApp.ActiveUIDocument;
+                Document doc = uiDoc?.Document;
+                if (doc == null)
+                {
+                    TaskDialog.Show("Erro", "Nenhum documento ativo encontrado.");
+                    return;
+                }
+
+                var store = TerrainCheckApp._thisApp?.Store;
+                if (store == null)
+                {
+                    TaskDialog.Show("Erro", "Objeto 'Store' não está inicializado.");
+                    return;
+                }
+
+                if (store.IntersectionElementId == null || store.IntersectionElementId == ElementId.InvalidElementId)
+                {
+                    TaskDialog.Show("Erro", "Elemento de interseção não foi definido.");
+                    return;
+                }
+
+                if (store.selection == null || store.selection.Lines == null || !store.selection.Lines.Any())
+                {
+                    TaskDialog.Show("Erro", "Seleção de linhas de contorno está vazia ou não definida.");
+                    return;
+                }
+
+                if (store.SubdivisionLevel <= 0)
+                {
+                    TaskDialog.Show("Erro", "Nível de subdivisão inválido. Deve ser maior que zero.");
+                    return;
+                }
+
+                if (double.IsNaN(store.PlatformElevation) || double.IsInfinity(store.PlatformElevation))
+                {
+                    TaskDialog.Show("Erro", "Elevação da plataforma não foi definida corretamente.");
+                    return;
+                }
+
+                try
+                {
+                    ProjectFaces projectFaces = new ProjectFaces(
+                        uiDoc,
+                        store.IntersectionElementId,
+                        store.selection.Lines,
+                        store.selection.LineResults,
+                        store.SubdivisionLevel, 
+                        store.PlatformElevation
+                    );
+
+                    TaskDialog.Show("Sucesso", "Verificação de terreno concluída com sucesso.");
+                }
+                catch (Exception ex)
+                {
+                    TaskDialog.Show("Erro", $"Falha ao processar faces do projeto: {ex.Message}");
+                }
+            }
+            catch (Exception ex)
             {
-                TaskDialog.Show("Erro", "Elemento de interseção não foi definido."); 
-                return;
+                TaskDialog.Show("Erro Crítico", $"Ocorreu um erro inesperado: {ex.Message}");
             }
-
-            if (store.selection == null || store.selection.Lines == null || store.selection.Lines.Count() == 0)
-            {
-                TaskDialog.Show("Erro", "Seleção de linhas de contorno está vazia ou não definida.");
-                return;
-            }
-
-            if (store.SubdivisionLevel <= 0)
-            {
-                TaskDialog.Show("Erro", "Nível de subdivisão inválido. Deve ser maior que zero.");
-                return;
-            }
-
-            if (double.IsNaN(store.PlatformElevation) || double.IsInfinity(store.PlatformElevation))
-            {
-                TaskDialog.Show("Erro", "Elevação da plataforma não foi definida corretamente.");
-                return;
-            }
-
-            ProjectFaces projectFaces = new ProjectFaces(
-                uiDoc,
-                store.IntersectionElementId,
-                store.selection.Lines,
-                store.selection.LineResults,
-                store.SubdivisionLevel,
-                store.PlatformElevation
-            ); 
         }
     }
 }

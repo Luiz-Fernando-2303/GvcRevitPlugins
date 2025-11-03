@@ -4,6 +4,7 @@ using Autodesk.Revit.UI.Selection;
 using GvcRevitPlugins.Shared.App;
 using GvcRevitPlugins.Shared.Commands;
 using Revit.Async;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -24,68 +25,129 @@ namespace GvcRevitPlugins.TerrainCheck.Commands
 
         public void MakeAction(object uiAppObj)
         {
-            var uiApp   = uiAppObj as UIApplication;
-            var uidoc   = uiApp.ActiveUIDocument;
-            var doc     = uidoc.Document;
-
-            string selectionType = TerrainCheckApp._thisApp.Store.ObjectSelectionType;
-            ObjectType objectType = selectionType switch
+            if (TerrainCheckApp._thisApp.Store.ObjectSelectionType == "")
             {
-                "Face"  => ObjectType.Face,    
-                _       => ObjectType.Element
-            }; 
+                TaskDialog.Show("Aviso", "Selecione um tipo de seleção para prosseguir.");
+                return;
+            }
 
-            Reference reference = uidoc.Selection.PickObject(objectType, $"Select the verification target ({selectionType})");
-            if (reference == null) return;
-
-            // Clear previous selection data
-            TerrainCheckApp._thisApp.Store.IntersectionGeometricObject = null;
-            TerrainCheckApp._thisApp.Store.Elementmaterials = null;
-
-            // Set the element 
-            TerrainCheckApp._thisApp.Store.IntersectionElementId = reference.ElementId;
-            TerrainCheckApp._thisApp.Store.Element = doc.GetElement(reference.ElementId);
-
-            // Set the material list
-            List<Material> elementMaterials = utils.ElementUtils.GetElementMaterials(doc, TerrainCheckApp._thisApp.Store.Element).ToList();
-            TerrainCheckApp._thisApp.Store.Elementmaterials = elementMaterials.Select(m => m.Name).Distinct().ToList();
-
-            if (objectType != ObjectType.Element)
+            try
             {
-                GeometryObject selectedFace = doc.GetElement(reference.ElementId)?.GetGeometryObjectFromReference(reference);
-                TerrainCheckApp._thisApp.Store.Element = doc.GetElement(reference.ElementId);
-
-                LocationPoint location = doc.GetElement(reference.ElementId)?.Location as LocationPoint;
-                if (location == null)
+                var uiApp = uiAppObj as UIApplication;
+                if (uiApp == null)
                 {
-                    var faceMesh_ = (selectedFace as Face).Triangulate();
-                    TerrainCheckApp._thisApp.Store.IntersectionGeometricObject = faceMesh_;
+                    TaskDialog.Show("Erro", "Aplicação inválida.");
                     return;
                 }
 
-                Transform translation = Transform.CreateTranslation(location?.Point ?? XYZ.Zero);
-                Transform rotation = Transform.CreateRotation(XYZ.BasisZ, location.Rotation);
+                var uidoc = uiApp.ActiveUIDocument;
+                var doc = uidoc?.Document;
+                if (doc == null)
+                {
+                    TaskDialog.Show("Erro", "Nenhum documento ativo encontrado.");
+                    return;
+                }
 
-                var faceMesh = (selectedFace as Face).Triangulate().get_Transformed(rotation).get_Transformed(translation);
-                TerrainCheckApp._thisApp.Store.IntersectionGeometricObject = faceMesh;
+                string selectionType = TerrainCheckApp._thisApp.Store.ObjectSelectionType;
+                ObjectType objectType = selectionType switch
+                {
+                    "Face" => ObjectType.Face,
+                    _ => ObjectType.Element
+                };
 
-                //int length = 10;
+                TaskDialog.Show("Info", $"Selecione o alvo de verificação ({selectionType})");
 
-                //XYZ faceNormal = (selectedFace as Face).ComputeNormal(new UV(-0.5, -0.5));
-                //XYZ center = (selectedFace as Face).Evaluate(new UV(0.5, 0.5));
+                Reference reference = null;
+                try
+                {
+                    reference = uidoc.Selection.PickObject(objectType, $"Selecione o alvo de verificação ({selectionType})");
+                }
+                catch (Autodesk.Revit.Exceptions.OperationCanceledException)
+                {
+                    TaskDialog.Show("Cancelado", "Seleção cancelada pelo usuário.");
+                    return;
+                }
 
-                //center = rotation.OfPoint(center);
-                //center = translation.OfPoint(center);
+                if (reference == null)
+                {
+                    TaskDialog.Show("Aviso", "Nenhum objeto foi selecionado.");
+                    return;
+                }
 
-                //utils.Draw._XYZ(doc, center);
+                // Clear previous selection data
+                TerrainCheckApp._thisApp.Store.IntersectionGeometricObject = null;
+                TerrainCheckApp._thisApp.Store.Elementmaterials = null;
 
-                //XYZ endPoint = center + faceNormal.Normalize() * length;
+                // Set the element 
+                Element element = doc.GetElement(reference.ElementId);
+                if (element == null)
+                {
+                    TaskDialog.Show("Erro", "Elemento inválido selecionado.");
+                    return;
+                }
 
-                //Curve debugLine = Line.CreateBound(center, endPoint);
-                //utils.Draw._Curve(doc, debugLine);
+                TerrainCheckApp._thisApp.Store.IntersectionElementId = reference.ElementId;
+                TerrainCheckApp._thisApp.Store.Element = element;
 
-                //Material material = doc.GetElement((selectedFace as Face).MaterialElementId) as Material;
-                //TaskDialog.Show("------",$"{material.Name}");
+                // Set the material list
+                try
+                {
+                    List<Material> elementMaterials = utils.ElementUtils.GetElementMaterials(doc, element).ToList();
+                    TerrainCheckApp._thisApp.Store.Elementmaterials = elementMaterials
+                        .Where(m => m != null)
+                        .Select(m => m.Name)
+                        .Distinct()
+                        .ToList();
+                }
+                catch (Exception ex)
+                {
+                    TaskDialog.Show("Aviso", $"Falha ao obter materiais do elemento: {ex.Message}");
+                }
+
+                // Caso seja Face, trata separadamente
+                if (objectType != ObjectType.Element)
+                {
+                    GeometryObject selectedFace = element?.GetGeometryObjectFromReference(reference);
+                    if (selectedFace is not Face face)
+                    {
+                        TaskDialog.Show("Erro", "A referência selecionada não é uma face válida.");
+                        return;
+                    }
+
+                    LocationPoint location = element?.Location as LocationPoint;
+                    Mesh faceMesh;
+
+                    try
+                    {
+                        if (location == null)
+                        {
+                            faceMesh = face.Triangulate();
+                        }
+                        else
+                        {
+                            Transform translation = Transform.CreateTranslation(location.Point ?? XYZ.Zero);
+                            Transform rotation = Transform.CreateRotation(XYZ.BasisZ, location.Rotation);
+
+                            faceMesh = face.Triangulate()
+                                           .get_Transformed(rotation)
+                                           .get_Transformed(translation);
+                        }
+
+                        TerrainCheckApp._thisApp.Store.IntersectionGeometricObject = faceMesh;
+                    }
+                    catch (Exception ex)
+                    {
+                        TaskDialog.Show("Erro", $"Falha ao processar a face selecionada: {ex.Message}");
+                        return;
+                    }
+                }
+
+                // Sucesso final
+                TaskDialog.Show("Sucesso", $"Objeto ({TerrainCheckApp._thisApp.Store.Element.Name}) configurado para verificação.");
+            }
+            catch (Exception ex)
+            {
+                TaskDialog.Show("Erro Crítico", $"Ocorreu um erro inesperado: {ex.Message}");
             }
         }
     }

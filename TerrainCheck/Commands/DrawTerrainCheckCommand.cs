@@ -19,52 +19,78 @@ namespace GvcRevitPlugins.TerrainCheck.Commands
 
         public void MakeAction(object uiApp)
         {
-            double? lowestZ = null;
-
-            if (TerrainCheckApp._thisApp.Store.PlatformElevation == 0)
+            try
             {
-                if (TerrainCheckApp._thisApp.Store.IntersectionGeometricObject is Mesh faceMesh)
-                {
-                    foreach (XYZ vertex in faceMesh.Vertices)
-                    {
-                        if (lowestZ == null || vertex.Z < lowestZ.Value)
-                            lowestZ = vertex.Z;
-                    }
-                }
-                else
-                {
-                    Element element = TerrainCheckApp._thisApp.Store.Element;
-                    Face[] faces = GetElementFaces(element);
+                double? lowestZ = null;
 
-                    if (faces != null && faces.Length > 0)
+                // Só calcula se a plataforma ainda não tiver sido definida
+                if (TerrainCheckApp._thisApp.Store.PlatformElevation == 0)
+                {
+                    // Caso tenha sido selecionada uma face diretamente
+                    if (TerrainCheckApp._thisApp.Store.IntersectionGeometricObject is Mesh faceMesh)
                     {
+                        foreach (XYZ vertex in faceMesh.Vertices)
+                        {
+                            if (lowestZ == null || vertex.Z < lowestZ.Value)
+                                lowestZ = vertex.Z;
+                        }
+                    }
+                    else
+                    {
+                        // Caso contrário, calcula pelas faces do elemento
+                        Element element = TerrainCheckApp._thisApp.Store.Element;
+                        if (element == null)
+                        {
+                            TaskDialog.Show("Erro", "Nenhum elemento válido foi encontrado para calcular a plataforma.");
+                            return;
+                        }
+
+                        Face[] faces = GetElementFaces(element);
+                        if (faces == null || faces.Length == 0)
+                        {
+                            TaskDialog.Show("Erro", $"O elemento {element.Id} não possui faces válidas.");
+                            return;
+                        }
+
                         foreach (Face face in faces)
                         {
-                            Mesh mesh = face.Triangulate();
-                            foreach (XYZ vertex in mesh.Vertices)
+                            try
                             {
-                                if (lowestZ == null || vertex.Z < lowestZ.Value)
-                                    lowestZ = vertex.Z;
+                                Mesh mesh = face.Triangulate();
+                                foreach (XYZ vertex in mesh.Vertices)
+                                {
+                                    if (lowestZ == null || vertex.Z < lowestZ.Value)
+                                        lowestZ = vertex.Z;
+                                }
+                            }
+                            catch (Exception ex)
+                            {
+                                TaskDialog.Show("Aviso", $"Falha ao triangulizar face do elemento {element.Id}: {ex.Message}");
                             }
                         }
                     }
+
+                    if (lowestZ.HasValue)
+                    {
+                        double lowestZInMeters = UnitUtils.ConvertFromInternalUnits(lowestZ.Value, UnitTypeId.Meters);
+                        TerrainCheckApp._thisApp.Store.PlatformElevation = (int)Math.Ceiling(lowestZInMeters);
+
+                        TaskDialog.Show("Sucesso", $"Plataforma definida na cota {TerrainCheckApp._thisApp.Store.PlatformElevation} m.");
+                    }
+                    else
+                    {
+                        TerrainCheckApp._thisApp.Store.PlatformElevation = 0;
+                        TaskDialog.Show("Aviso", "Não foi possível determinar a cota da plataforma. Valor definido como 0.");
+                    }
                 }
 
-                if (lowestZ.HasValue)
-                {
-                    double lowestZInMeters = UnitUtils.ConvertFromInternalUnits(lowestZ.Value, UnitTypeId.Meters);
-                    TerrainCheckApp._thisApp.Store.PlatformElevation = (int)Math.Ceiling(lowestZInMeters);
-                }
-                else
-                {
-                    TerrainCheckApp._thisApp.Store.PlatformElevation = 0;
-                }
+                // Executa o comando principal
+                TerrainCheckCommand.Execute(uiApp as UIApplication, true);
             }
-
-            // demarcar objetos ao gerar (ok)
-            // loading para indicar trabalho (ok)
-            // reduzir tamanho minimo (ok)
-            TerrainCheckCommand.Execute(uiApp as UIApplication, true);
+            catch (Exception ex)
+            {
+                TaskDialog.Show("Erro Crítico", $"Ocorreu um erro inesperado: {ex.Message}");
+            }
         }
 
         public Face[] GetElementFaces(Element element)

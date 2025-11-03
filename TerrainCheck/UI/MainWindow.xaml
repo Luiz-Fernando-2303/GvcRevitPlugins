@@ -161,7 +161,7 @@
                             </Button>
 
                             <!-- Dropdown "Família / Face" -->
-                            <ComboBox x:Name="selectionType_" Width="110" Margin="0 0 8 0" SelectedValue="{Binding Store.ObjectSelectionType, UpdateSourceTrigger=PropertyChanged}" SelectedValuePath="Content" VerticalAlignment="Center" SelectionChanged="ComboBox_SelectionChanged" SelectedIndex="0">
+                            <ComboBox x:Name="selectionType_" Width="110" Margin="0 0 8 0" SelectedValue="{Binding Store.ObjectSelectionType, UpdateSourceTrigger=PropertyChanged}" SelectedValuePath="Content" VerticalAlignment="Center" SelectionChanged="ComboBox_SelectionChanged">
                                 <ComboBoxItem Content="Família" />
                                 <ComboBoxItem Content="Face" />
                             </ComboBox>

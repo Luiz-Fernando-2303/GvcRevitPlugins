@@ -1,5 +1,6 @@
 ﻿using Autodesk.Revit.DB;
 using Autodesk.Revit.UI;
+using GvcRevitPlugins.TerrainCheck.CommandFunctions;
 using GvcRevitPlugins.TerrainCheck.UI;
 using System;
 using System.Collections.Generic;
@@ -104,7 +105,8 @@ namespace GvcRevitPlugins.TerrainCheck
 
             if (TerrainCheckApp._thisApp.Store.IntersectionGeometricObject == null)
             {
-                Faces = GetElementFaces();
+                //Faces = GetElementFaces();
+                Faces = InternalUtils.GetElementFaces(Element, Document);
                 if (Faces == null || Faces.Length == 0)
                 {
                     TaskDialog.Show("Erro", "Nenhuma face válida encontrada no elemento selecionado.");
@@ -113,7 +115,8 @@ namespace GvcRevitPlugins.TerrainCheck
             } 
             else
             {
-                CreateDummyFaces();
+                //CreateDummyFaces();
+                Faces = InternalUtils.CreateDummyFaces();
                 if (Faces == null || Faces.Length == 0)
                 {
                     TaskDialog.Show("Erro", "Nenhuma face válida encontrada no objeto de interseção.");
@@ -133,7 +136,7 @@ namespace GvcRevitPlugins.TerrainCheck
         private void Execute()
         {
             List<WallResult_> wallResults = new List<WallResult_>();
-            List<string> errorMessages = new List<string>();
+            HashSet<string> errorTypes = new HashSet<string>();
 
             foreach (LineResult lineResult in LineResults)
             {
@@ -148,23 +151,24 @@ namespace GvcRevitPlugins.TerrainCheck
 
                 if (subdivisions == null || subdivisions.Count == 0)
                 {
-                    errorMessages.Add(
-                        $"Linha {lineId} (comprimento: {lineLength:F2}): não foi possível subdividir.\n" +
-                        $"- Possíveis causas: linha muito curta, inválida ou subdivisão definida muito densa.\n" +
-                        $"- Verifique se a linha está em um plano válido e se o nível de subdivisão ({TerrainCheckApp._thisApp.Store.SubdivisionLevel}) não é exagerado."
+                    errorTypes.Add(
+                        "Algumas linhas não puderam ser subdivididas.\n" +
+                        "- Possíveis causas: linha muito curta, inválida ou subdivisão muito densa.\n" +
+                        "- Verifique se as linhas estão em um plano válido e se o nível de subdivisão não é exagerado."
                     );
                     continue;
                 }
 
                 LinesSubdivions.AddRange(subdivisions);
 
-                ProjectionResult[] projectedPoints = ProjectLinesToFaces(subdivisions);
+                //ProjectionResult[] projectedPoints = ProjectLinesToFaces(subdivisions);
+                ProjectionResult[] projectedPoints = InternalUtils.ProjectLinesToFaces(subdivisions, Faces, TerrainFaces, Element);
                 if (projectedPoints == null || projectedPoints.Length == 0)
                 {
-                    errorMessages.Add(
-                        $"Linha {lineId} (pontos gerados: {subdivisions.Count}): não foi possível projetar os pontos sobre a topografia.\n" +
-                        $"- Possíveis causas: superfície de terreno não encontrada, faces do terreno inacessíveis ou pontos fora do alcance.\n" +
-                        $"- Sugestão: verifique se existe topografia no modelo e se a linha não está fora da área do terreno."
+                    errorTypes.Add(
+                        "Algumas linhas não puderam ser projetadas sobre o terreno.\n" +
+                        "- Possíveis causas: superfície de terreno não encontrada, faces inacessíveis ou pontos fora da área do terreno.\n" +
+                        "- Sugestão: verifique se existe topografia no modelo e se as linhas estão dentro da área do terreno."
                     );
                     continue;
                 }
@@ -177,10 +181,10 @@ namespace GvcRevitPlugins.TerrainCheck
                 );
                 if (slopePoints == null || slopePoints.Length == 0)
                 {
-                    errorMessages.Add(
-                        $"Linha {lineId}: não foi possível calcular os pontos de declive a partir da projeção.\n" +
-                        $"- Possíveis causas: pontos projetados em níveis inválidos ou falha no cálculo de declividade.\n" +
-                        $"- Sugestão: verifique se a elevação de plataforma ({TerrainCheckApp._thisApp.Store.PlatformElevation}) está correta e se a linha não está totalmente plana."
+                    errorTypes.Add(
+                        "Algumas linhas não tiveram seus pontos de declive calculados.\n" +
+                        "- Possíveis causas: projeções em níveis inválidos ou falha no cálculo de declividade.\n" +
+                        "- Sugestão: verifique se a elevação de plataforma está correta e se as linhas não estão totalmente planas."
                     );
                     continue;
                 }
@@ -190,22 +194,23 @@ namespace GvcRevitPlugins.TerrainCheck
 
             if (wallResults.Count == 0)
             {
-                string allErrors = errorMessages.Count > 0
-                    ? string.Join("\n\n", errorMessages)
+                string allErrors = errorTypes.Count > 0
+                    ? string.Join("\n\n", errorTypes)
                     : "Nenhuma linha pôde ser processada. Verifique se há linhas válidas no modelo.";
                 TaskDialog.Show("Falha no Processamento", allErrors);
                 return;
             }
 
-            if (errorMessages.Count > 0)
+            if (errorTypes.Count > 0)
             {
                 TaskDialog.Show(
                     "Aviso - Processamento Parcial",
-                    $"Algumas linhas não puderam ser processadas completamente:\n\n{string.Join("\n\n", errorMessages)}"
+                    string.Join("\n\n", errorTypes)
                 );
             }
 
-            List<WallResult_> connectedSlopePoints = ConnectPoints(wallResults.ToArray()).ToList();
+            //List<WallResult_> connectedSlopePoints = ConnectPoints(wallResults.ToArray()).ToList();
+            List<WallResult_> connectedSlopePoints = InternalUtils.ConnectPoints(wallResults.ToArray()).ToList();
             if (connectedSlopePoints == null || connectedSlopePoints.Count == 0)
             {
                 TaskDialog.Show(
@@ -215,26 +220,28 @@ namespace GvcRevitPlugins.TerrainCheck
                 return;
             }
 
-            //CreateExtrudedWallFromCurves(connectedSlopePoints.ToArray());
-
             using (Transaction transaction = new Transaction(Document, "Draw Line"))
             {
                 transaction.Start();
-                var segments = ConnectSegments(connectedSlopePoints);
+                //var segments = ConnectSegments(connectedSlopePoints);
+                var segments = InternalUtils.ConnectSegments(connectedSlopePoints, 100, 60, 200);
                 foreach (var segment in segments)
                 {
-                    var worstLines = BuildWorstLines(segment.ToList(), Document, 0);
+                    //var worstLines = BuildWorstLines(segment.ToList(), Document, 0);
+                    var worstLines = InternalUtils.BuildWorstLines(segment.ToList(), Document, 0);
                     if (worstLines != null)
                     {
                         foreach (var line in worstLines)
+                        {
                             utils.Draw._Wall(
                                 Uid,
                                 line,
-                                TerrainCheck.TerrainCheckApp._thisApp.Store.BoundarySelectionType == "Arrimo"? "Arrimo" : "Talude",
+                                TerrainCheck.TerrainCheckApp._thisApp.Store.BoundarySelectionType == "Arrimo" ? "Arrimo" : "Talude",
                                 new Color(255, 0, 0),
                                 0.01,
                                 3
                             );
+                        }
                     }
                 }
                 transaction.Commit();
@@ -245,7 +252,6 @@ namespace GvcRevitPlugins.TerrainCheck
         {
             List<WallResult_> resultPoints = new();
             List<XYZ> unprojectedPoints = new();
-
             int totalPoints = projections.Count();
 
             ProgressWindow progressWindow = new ProgressWindow();
@@ -257,78 +263,9 @@ namespace GvcRevitPlugins.TerrainCheck
             {
                 try
                 {
-                    Face face = projectionResult.Face;
-                    XYZ projectedPoint = projectionResult.ProjectedPoint;
-                    XYZ flatPoint = projectionResult.FlatPoint;
-
-                    Line baseFlatLine = utils.XYZUtils.GetLongestHorizontalEdge(face);
-                    Line baseLine = utils.XYZUtils.GetLongestHorizontalEdge(face, false);
-
-                    XYZ facePoint = utils.XYZUtils.ProjectPointOntoTopography(TerrainFaces, face.Triangulate().Vertices.First());
-
-                    XYZ normal = utils.XYZUtils.FaceNormal(face, out _);
-                    if (normal == null) continue;
-
-                    Line ray = Line.CreateUnbound(flatPoint, normal);
-                    SetComparisonResult intersectionResult = baseFlatLine.Intersect(ray, out IntersectionResultArray intersectionArray);
-                    if (intersectionResult != SetComparisonResult.Overlap || intersectionArray == null || intersectionArray.IsEmpty)
-                        continue;
-
-                    XYZ intersection = intersectionArray.get_Item(0).XYZPoint;
-                    XYZ transformedIntersection = new XYZ(intersection.X, intersection.Y, baseLine.GetEndPoint(0).Z);
-
-                    double wallHeight = UnitUtils.ConvertToInternalUnits(3, UnitTypeId.Feet);
-
-                    double minDistance = UnitUtils.ConvertToInternalUnits(utils.XYZUtils.UpOrDown(facePoint, projectedPoint), UnitTypeId.Meters);
-                    double totalOffset = 0;
-
-                    if (minDistance == UnitUtils.ConvertToInternalUnits(1.5, UnitTypeId.Meters))
-                        totalOffset = minDistance;
-
-                    else
-                    {
-                        if (TerrainCheckApp._thisApp.Store.BoundarySelectionType == "Arrimo")
-                        {
-                            ElementType type = reference.Document.GetElement(reference.GetTypeId()) as ElementType;
-                            double retainWallHeight = 0;
-
-                            if (type != null)
-                            {
-                                Parameter heightParam = type.LookupParameter("Altura Arrimo");
-                                if (heightParam != null && heightParam.HasValue)
-                                {
-                                    retainWallHeight = heightParam.AsDouble();
-                                }
-                                totalOffset = retainWallHeight - 3.28;
-                            }
-                        }
-                        else
-                        {
-                            double verticalOffset = (projectedPoint.Z - baseElevation) / 2;
-                            verticalOffset = Math.Max(verticalOffset, minDistance);
-
-                            double inclinationOffset = Math.Abs(transformedIntersection.Z - projectedPoint.Z) / 2;
-                            totalOffset = verticalOffset + inclinationOffset;
-                        }
-                    }
-
-                    XYZ movedPoint = utils.XYZUtils.GetEndPoint(transformedIntersection, normal, totalOffset);
-                    XYZ finalPoint = new XYZ(movedPoint.X, movedPoint.Y, UnitUtils.ConvertToInternalUnits(baseElevation, UnitTypeId.Meters));
-
-                    if (project)
-                        finalPoint = utils.XYZUtils.ProjectPointOntoTopography(TerrainFaces, movedPoint);
-
-                    WallResult_ slopeResult = new WallResult_(finalPoint, wallHeight, totalOffset);
-                    slopeResult.PlatoHeightPoint = new XYZ(movedPoint.X, movedPoint.Y, UnitUtils.ConvertToInternalUnits(baseElevation, UnitTypeId.Meters));
-
-                    if (slopeResult.resultPoint == null || project == false)
-                    {
-                        movedPoint = new XYZ(movedPoint.X, movedPoint.Y, UnitUtils.ConvertToInternalUnits(baseElevation, UnitTypeId.Meters));
-                        unprojectedPoints.Add(movedPoint);
-                        continue;
-                    }
-
-                    resultPoints.Add(slopeResult);
+                    WallResult_ slopePoint = ProcessProjection(projectionResult, reference, baseElevation, project, unprojectedPoints);
+                    if (slopePoint != null)
+                        resultPoints.Add(slopePoint);
                 }
                 catch
                 {
@@ -336,450 +273,105 @@ namespace GvcRevitPlugins.TerrainCheck
                 }
 
                 currentIndex++;
-                double percentage = (double)currentIndex / totalPoints * 100;
-                progressWindow.UpdateProgress(percentage, $"Processando pontos: {currentIndex}/{totalPoints}");
-                System.Windows.Threading.Dispatcher.CurrentDispatcher.Invoke(System.Windows.Threading.DispatcherPriority.Background, new Action(delegate { }));
+                UpdateProgress(progressWindow, currentIndex, totalPoints);
             }
 
             progressWindow.Close();
 
-            if (unprojectedPoints.Count > 0 && project)
-            {
-                TaskDialogResult result = TaskDialog.Show(
-                    "Pontos Fora do Sólido",
-                    $"Foram encontrados {unprojectedPoints.Count} ponto(s) fora da topografia.\nDeseja desenhá-los no modelo?",
-                    TaskDialogCommonButtons.Yes | TaskDialogCommonButtons.No);
-
-                if (result == TaskDialogResult.Yes)
-                {
-                    foreach (XYZ point in unprojectedPoints)
-                    {
-                        utils.Draw._XYZ(Document, point, 0.5, new Color(255, 165, 0));
-                    }
-                }
-            }
-
+            HandleUnprojectedPoints(unprojectedPoints, project);
             return resultPoints.ToArray();
         }
 
-        private void CreateDummyFaces()
+        private WallResult_ ProcessProjection(ProjectionResult projectionResult, Element reference, double baseElevation, bool project, List<XYZ> unprojectedPoints)
         {
-            var dummy = new List<Face>();
-            GeometryObject geometryObject = TerrainCheckApp._thisApp.Store.IntersectionGeometricObject;
-            Face face = geometryObject as Face;
-            Mesh mesh = geometryObject as Mesh;
+            Face face = projectionResult.Face;
+            XYZ projectedPoint = projectionResult.ProjectedPoint;
+            XYZ flatPoint = projectionResult.FlatPoint;
 
-            if (mesh == null || mesh.Vertices.Count < 4) return;
+            Line baseFlatLine = utils.XYZUtils.GetLongestHorizontalEdge(face);
+            Line baseLine = utils.XYZUtils.GetLongestHorizontalEdge(face, false);
+            XYZ facePoint = utils.XYZUtils.ProjectPointOntoTopography(TerrainFaces, face.Triangulate().Vertices.First());
+            XYZ normal = utils.XYZUtils.FaceNormal(face, out _);
+            if (normal == null) return null;
 
-            XYZ p1 = mesh.Vertices[0];
-            XYZ p2 = mesh.Vertices[1];
-            XYZ p3 = mesh.Vertices[2];
-            XYZ p4 = mesh.Vertices[3];
+            Line ray = Line.CreateUnbound(flatPoint, normal);
+            SetComparisonResult intersectionResult = baseFlatLine.Intersect(ray, out IntersectionResultArray intersectionArray);
+            if (intersectionResult != SetComparisonResult.Overlap || intersectionArray == null || intersectionArray.IsEmpty)
+                return null;
 
-            var faceLoop = new CurveLoop();
-            faceLoop.Append(Line.CreateBound(p1, p2));
-            faceLoop.Append(Line.CreateBound(p2, p3));
-            faceLoop.Append(Line.CreateBound(p3, p4));
-            faceLoop.Append(Line.CreateBound(p4, p1));
+            XYZ intersection = intersectionArray.get_Item(0).XYZPoint;
+            XYZ transformedIntersection = new XYZ(intersection.X, intersection.Y, baseLine.GetEndPoint(0).Z);
 
-            XYZ v1 = p2 - p1;
-            XYZ v2 = p3 - p1;
-            XYZ normal = v1.CrossProduct(v2);
+            double wallHeight = UnitUtils.ConvertToInternalUnits(3, UnitTypeId.Feet);
+            double totalOffset = CalculateOffset(facePoint, projectedPoint, reference, baseElevation, transformedIntersection);
 
-            if (normal.IsZeroLength())
+            XYZ movedPoint = utils.XYZUtils.GetEndPoint(transformedIntersection, normal, totalOffset);
+            XYZ finalPoint = new XYZ(movedPoint.X, movedPoint.Y, UnitUtils.ConvertToInternalUnits(baseElevation, UnitTypeId.Meters));
+
+            if (project)
+                finalPoint = utils.XYZUtils.ProjectPointOntoTopography(TerrainFaces, movedPoint);
+
+            WallResult_ slopeResult = new WallResult_(finalPoint, wallHeight, totalOffset);
+            slopeResult.PlatoHeightPoint = new XYZ(movedPoint.X, movedPoint.Y, UnitUtils.ConvertToInternalUnits(baseElevation, UnitTypeId.Meters));
+
+            if (slopeResult.resultPoint == null || project == false)
             {
-                TaskDialog.Show("Erro", "A normal da face não pôde ser calculada (pontos coplanares ou degenerados).");
-                return;
+                movedPoint = new XYZ(movedPoint.X, movedPoint.Y, UnitUtils.ConvertToInternalUnits(baseElevation, UnitTypeId.Meters));
+                unprojectedPoints.Add(movedPoint);
+                return null;
             }
 
-            normal = normal.Normalize();
+            return slopeResult;
+        }
 
-            Solid extrusion = GeometryCreationUtilities.CreateExtrusionGeometry(
-                new List<CurveLoop> { faceLoop },
-                normal,  
-                0.01
+        private double CalculateOffset(XYZ facePoint, XYZ projectedPoint, Element reference, double baseElevation, XYZ transformedIntersection)
+        {
+            double minDistance = UnitUtils.ConvertToInternalUnits(utils.XYZUtils.UpOrDown(facePoint, projectedPoint), UnitTypeId.Meters);
+            if (minDistance == UnitUtils.ConvertToInternalUnits(1.5, UnitTypeId.Meters))
+                return minDistance;
+
+            if (TerrainCheckApp._thisApp.Store.BoundarySelectionType == "Arrimo")
+            {
+                ElementType type = reference.Document.GetElement(reference.GetTypeId()) as ElementType;
+                if (type != null)
+                {
+                    Parameter heightParam = type.LookupParameter("Altura Arrimo");
+                    if (heightParam != null && heightParam.HasValue)
+                        return heightParam.AsDouble() - 3.28;
+                }
+                return 0;
+            }
+
+            double verticalOffset = (projectedPoint.Z - baseElevation) / 2;
+            verticalOffset = Math.Max(verticalOffset, minDistance);
+            double inclinationOffset = Math.Abs(transformedIntersection.Z - projectedPoint.Z) / 2;
+            return verticalOffset + inclinationOffset;
+        }
+
+        private void UpdateProgress(ProgressWindow progressWindow, int currentIndex, int totalPoints)
+        {
+            double percentage = (double)currentIndex / totalPoints * 100;
+            progressWindow.UpdateProgress(percentage, $"Processando pontos: {currentIndex}/{totalPoints}");
+            System.Windows.Threading.Dispatcher.CurrentDispatcher.Invoke(
+                System.Windows.Threading.DispatcherPriority.Background,
+                new Action(delegate { })
             );
-
-            //filter Faces that point to the same normal as the original face
-            var validFaces = new List<Face>();
-            foreach (Face f in extrusion.Faces)
-            {
-                XYZ faceNormal = utils.XYZUtils.FaceNormal(f, out _);
-                if (faceNormal != null && faceNormal.DotProduct(normal) > 0.9)
-                {
-                    validFaces.Add(f);
-                }
-            }
-
-            if (validFaces.Count > 0)
-                dummy.AddRange(validFaces);
-
-            Faces = dummy.ToArray();
         }
 
-        private void CreateExtrudedWallFromCurves(WallResult_[] wallResults)
+        private void HandleUnprojectedPoints(List<XYZ> unprojectedPoints, bool project)
         {
-            using (var tx = new Transaction(Document, "Create extrude wall"))
+            if (unprojectedPoints.Count == 0 || !project) return;
+
+            TaskDialogResult result = TaskDialog.Show(
+                "Pontos Fora do Sólido",
+                $"Foram encontrados {unprojectedPoints.Count} ponto(s) fora da topografia.\nDeseja desenhá-los no modelo?",
+                TaskDialogCommonButtons.Yes | TaskDialogCommonButtons.No);
+
+            if (result == TaskDialogResult.Yes)
             {
-                tx.Start();
-
-                List<ElementId> createdIds = new List<ElementId>();
-
-                foreach (var wall in wallResults)
-                {
-                    var baseStart = wall.wallCurve.GetEndPoint(0);
-                    var baseEnd = wall.wallCurve.GetEndPoint(1);
-
-                    double height = UnitUtils.ConvertToInternalUnits(wall.wallHeight, UnitTypeId.Feet);
-
-                    height = height < 0 ? -height : height;
-                    var up = XYZ.BasisZ.Multiply(height);
-
-                    var p1 = baseStart;
-                    var p2 = baseEnd;
-                    var p3 = baseEnd + up;
-                    var p4 = baseStart + up;
-
-                    var faceLoop = new CurveLoop();
-                    faceLoop.Append(Line.CreateBound(p1, p2));
-                    faceLoop.Append(Line.CreateBound(p2, p3));
-                    faceLoop.Append(Line.CreateBound(p3, p4));
-                    faceLoop.Append(Line.CreateBound(p4, p1));
-
-                    var loops = new List<CurveLoop> { faceLoop };
-                    Solid wallSolid = GeometryCreationUtilities.CreateExtrusionGeometry(
-                        loops,
-                        (p2 - p1).CrossProduct(up).Normalize(),
-                        0.01
-                    );
-
-                    var color = new Color(255, 0, 0); // vermelho
-                    int transparency = 70;            // 0 = opaco, 100 = invisível
-
-                    var geo = utils.ElementUtils.AddSolidWithColor(
-                        Document, wallSolid, color, transparency, out var element, addOnScene: true); // adcionar propriedade de referencia
-
-                    if (element != null)
-                        createdIds.Add(element.Id);
-                }
-
-                if (createdIds.Count > 0)
-                {
-                    UIDocument uidoc = new UIDocument(Document);
-                    createdIds.Add(TerrainCheckApp._thisApp.Store.Element.Id);
-                    // add toposolid on view
-                    var search = new FilteredElementCollector(Document)
-                        .OfClass(typeof(Toposolid))
-                        .Cast<Toposolid>().ToList();
-                    if (search != null)
-                        createdIds.AddRange(search.Select(s => s.Id));
-
-                    createdIds.AddRange(TerrainCheckApp._thisApp.Store.TerrainBoundaryIds);
-
-                    //uidoc.Selection.SetElementIds(createdIds);
-                    //Document.ActiveView.IsolateElementsTemporary(createdIds);
-
-                    //var tgm = TemporaryGraphicsManager.GetTemporaryGraphicsManager(Document);
-                    //var ogs = new OverrideGraphicSettings()
-                    //    .SetProjectionLineColor(new Color(0, 255, 0)) // verde
-                    //    .SetSurfaceTransparency(30);                  // semitransparente
-
-                    //foreach (var id in createdIds)
-                    //    Document.ActiveView.SetElementOverrides(id, ogs);
-                }
-
-                tx.Commit();
+                foreach (XYZ point in unprojectedPoints)
+                    utils.Draw._XYZ(Document, point, 0.5, new Color(255, 165, 0));
             }
         }
-
-        private WallResult_[] ConnectPoints(WallResult_[] points)
-        {
-            if (points == null || points.Length < 2)
-                return Array.Empty<WallResult_>();
-
-            var curves = new List<WallResult_>();
-            double totalDistance = 0;
-            int segmentCount = 0;
-
-            const double maxRelativeFactor = 20.0; // Fator multiplicador para definir distância "anormal"
-            const double minDistanceTolerance = 0.01; // Tolerância para evitar curvas de comprimento quase zero
-
-            for (int i = 1; i < points.Length; i++)
-            {
-                var prev = points[i - 1];
-                var current = points[i];
-                double distance = prev.PlatoHeightPoint.DistanceTo(current.PlatoHeightPoint);
-
-                // Evita distância nula ou quase nula
-                if (distance < minDistanceTolerance)
-                    continue;
-
-                double average = segmentCount > 0 ? totalDistance / segmentCount : distance;
-
-                // Interrompe o agrupamento se a distância for muito discrepante
-                if (segmentCount > 0 && distance > maxRelativeFactor * average)
-                {
-                    totalDistance = 0;
-                    segmentCount = 0;
-                    continue;
-                }
-
-                // Só considera segmentos curtos (dentro do limite de 20)
-                if (distance <= 20)
-                {
-                    try
-                    {
-                        var curve = Line.CreateBound(prev.PlatoHeightPoint, current.PlatoHeightPoint);
-                        if (curve.Length > minDistanceTolerance)
-                        {
-                            prev.wallCurve = curve;
-                            curves.Add(prev);
-
-                            totalDistance += distance;
-                            segmentCount++;
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        // Log opcional ou debug
-                        Debug.WriteLine($"Erro ao criar linha entre pontos: {ex.Message}");
-                        // Continua para evitar que um erro comprometa toda a sequência
-                        continue;
-                    }
-                }
-            }
-
-            return curves.ToArray();
-        }
-
-        public ProjectionResult[] ProjectLinesToFaces(IEnumerable<XYZ> points)
-        {
-            List<XYZ> projectedPoints = new();
-            List<ProjectionResult> results = new();
-
-            int totalPoints = points.Count();
-
-            ProgressWindow progressWindow = new ProgressWindow();
-            progressWindow.Show();
-
-            int currentIndex = 0;
-
-            foreach (XYZ startPoint in points)
-            {
-                foreach (Face face in Faces)
-                {
-                    XYZ normal = utils.XYZUtils.FaceNormal(face, out _);
-                    if (normal == null) continue;
-
-                    if (utils.XYZUtils.IsFacingInside(face, Element))
-                        normal = -normal;
-
-                    XYZ vectorToFace = (face.Evaluate(new UV(0.5, 0.5)) - startPoint).Normalize();
-
-                    if (normal.DotProduct(vectorToFace) <= 0)
-                    {
-                        continue;
-                    }
-
-                    Line horizontalLine = utils.XYZUtils.GetLongestHorizontalEdge(face);
-                    if (horizontalLine == null) continue;
-
-                    Line ray = Line.CreateUnbound(startPoint, normal);
-                    var resultSet = horizontalLine?.Intersect(ray, out _);
-                    if (resultSet != SetComparisonResult.Overlap) continue;
-
-                    XYZ projected = utils.XYZUtils.ProjectPointOntoTopography(TerrainFaces, startPoint);
-                    if (projected != null)
-                    {
-                        projectedPoints.Add(projected);
-                        ProjectionResult projectionResult = new ProjectionResult(face, startPoint, projected);
-                        results.Add(projectionResult);
-                        break;
-                    }
-                }
-
-                currentIndex++;
-                double percentage = (double)currentIndex / totalPoints * 100;
-                progressWindow.UpdateProgress(percentage, $"Projetando pontos: {currentIndex}/{totalPoints}");
-                System.Windows.Threading.Dispatcher.CurrentDispatcher.Invoke(
-                    System.Windows.Threading.DispatcherPriority.Background,
-                    new Action(delegate { })
-                );
-            }
-            progressWindow.Close();
-
-            return results.ToArray();
-        }
-
-        private Face[] GetElementFaces()
-        {
-            if (Element == null) return null;
-
-            GeometryElement geomElement = Element.get_Geometry(new Options());
-            if (geomElement == null) return null;
-
-            List<Face> faces = new();
-
-            foreach (GeometryObject geoObj in geomElement)
-            {
-                if (geoObj is Solid solid && solid.Faces.Size > 0)
-                {
-                    faces.AddRange(solid.Faces.Cast<Face>());
-                }
-                else if (geoObj is Face face)
-                {
-                    faces.Add(face);
-                }
-                else if (geoObj is GeometryInstance geoInstance)
-                {
-                    GeometryElement instanceGeometry = geoInstance.GetInstanceGeometry();
-                    foreach (GeometryObject instObj in instanceGeometry)
-                    {
-                        if (instObj is Solid instSolid && instSolid.Faces.Size > 0)
-                        {
-                            faces.AddRange(instSolid.Faces.Cast<Face>());
-                        }
-                        else if (instObj is Face instFace)
-                        {
-                            faces.Add(instFace);
-                        }
-                    }
-                }
-            }
-
-            for (int i = faces.Count - 1; i >= 0; i--)
-            {
-                Material material = Document.GetElement(faces[i].MaterialElementId) as Material;
-                if (material == null || !TerrainCheckApp._thisApp.Store.SelectedMaterials.Contains(material.Name))
-                {
-                    faces.RemoveAt(i);
-                }
-            }
-
-            BoundingBoxXYZ bbox = Element.get_BoundingBox(Document.ActiveView);
-            XYZ center = (bbox.Min + bbox.Max) / 2;
-            for (int i = faces.Count - 1; i >= 0; i--)
-            {
-                Face face = faces[i];
-                UV uv = new UV(0.5, 0.5);
-                XYZ faceNormal = face.ComputeNormal(uv).Normalize();
-                XYZ faceOrigin = face.Evaluate(uv);
-
-                XYZ directionToCenter = (center - faceOrigin).Normalize();
-
-                double dot = faceNormal.DotProduct(directionToCenter);
-                if (dot > 0)
-                {
-                    faces.RemoveAt(i);
-                }
-            }
-
-            //utils.Draw._Face(Document, faces, new Color(255, 0, 0), 70);
-
-            return faces.ToArray();
-        }
-
-        private List<WallResult_[]> ConnectSegments(List<WallResult_> wallResults, double maxDist = 20, double maxAngleDeg = 30,double maxSegmentLength = 200)
-        {
-            List<WallResult_[]> segments = new List<WallResult_[]>();
-            List<WallResult_> currentSegment = new List<WallResult_>();
-            double accumulatedLength = 0;
-
-            for (int i = 0; i < wallResults.Count; i++)
-            {
-                WallResult_ currentPoint = wallResults[i];
-                if (currentSegment.Count == 0)
-                {
-                    currentSegment.Add(currentPoint);
-                }
-                else
-                {
-                    WallResult_ lastPoint = currentSegment.Last();
-                    double distance = lastPoint.PlatoHeightPoint.DistanceTo(currentPoint.PlatoHeightPoint);
-
-                    XYZ prevVector = (currentSegment.Count > 1)
-                        ? currentSegment.Last().PlatoHeightPoint - currentSegment[currentSegment.Count - 2].PlatoHeightPoint
-                        : null;
-
-                    XYZ currentVector = currentPoint.PlatoHeightPoint - lastPoint.PlatoHeightPoint;
-
-                    double angleDeg = 0;
-                    if (prevVector != null && prevVector.GetLength() > 1e-6 && currentVector.GetLength() > 1e-6)
-                    {
-                        double dot = prevVector.Normalize().DotProduct(currentVector.Normalize());
-                        dot = Math.Max(-1.0, Math.Min(1.0, dot));
-                        angleDeg = Math.Acos(dot) * (180.0 / Math.PI);
-                    }
-
-                    bool breakSegment = false;
-                    if (distance > maxDist) breakSegment = true;
-                    if (angleDeg > maxAngleDeg) breakSegment = true;
-                    if (accumulatedLength + distance > maxSegmentLength) breakSegment = true;
-
-                    if (!breakSegment)
-                    {
-                        currentSegment.Add(currentPoint);
-                        accumulatedLength += distance;
-                    }
-                    else
-                    {
-                        if (currentSegment.Count >= 2)
-                            segments.Add(currentSegment.ToArray());
-
-                        currentSegment = new List<WallResult_> { currentPoint };
-                        accumulatedLength = 0;
-                    }
-                }
-            }
-
-            if (currentSegment.Count >= 2)
-                segments.Add(currentSegment.ToArray());
-
-            return segments;
-        }
-
-        private List<Line> BuildWorstLines(List<WallResult_> segment, Document doc, int step = 5)
-        {
-            List<Line> lines = new List<Line>();
-
-            if (step <= 0)
-                step = segment.Count();
-
-            if (segment == null || segment.Count < 2)
-                return lines;
-
-            WallResult_ worst = segment.OrderByDescending(w => w.totalOffset).FirstOrDefault();
-            WallResult_ first = segment.First();
-
-            if (worst == null || first == null)
-                return lines;
-
-            XYZ overallDirection = (segment.Last().PlatoHeightPoint - first.PlatoHeightPoint).Normalize();
-            XYZ lateral = new XYZ(-overallDirection.Y, overallDirection.X, 0).Normalize();
-
-            XYZ toWorst = worst.PlatoHeightPoint - first.PlatoHeightPoint;
-            double lateralOffset = toWorst.DotProduct(lateral);
-
-            for (int i = 0; i < segment.Count - 1; i += step)
-            {
-                int endIdx = Math.Min(i + step, segment.Count - 1);
-
-                XYZ pStart = segment[i].PlatoHeightPoint;
-                XYZ pEnd = segment[endIdx].PlatoHeightPoint;
-
-                XYZ newStart = pStart + lateral * lateralOffset;
-                XYZ newEnd = pEnd + lateral * lateralOffset;
-
-                Line movedLine = Line.CreateBound(newStart, newEnd);
-
-                if (movedLine.Length >= doc.Application.ShortCurveTolerance)
-                {
-                    lines.Add(movedLine);
-                }
-            }
-
-            return lines;
-        }
-
     }
 }

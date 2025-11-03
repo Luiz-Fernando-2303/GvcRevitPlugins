@@ -91,7 +91,7 @@ namespace GvcRevitPlugins.TerrainCheck
             }
         }
 
-        private string _objectSelectionType = "Elemento";
+        private string _objectSelectionType = "";
         public string ObjectSelectionType
         {
             get => _objectSelectionType;
@@ -109,10 +109,10 @@ namespace GvcRevitPlugins.TerrainCheck
         // pegar maior desnivel
         // 
 
-        private string Version { get; set; } = "1.3.5";
+        private string Version { get; set; } = "1.3.6";
         public string Version_
         {
-            get => Version;
+            get => Version; 
         }
 
         public void Reset()
@@ -141,7 +141,7 @@ namespace GvcRevitPlugins.TerrainCheck
 
             // Resetar strings
             BoundarySelectionType = "Linha de Divisa";
-            ObjectSelectionType = "Elemento";
+            ObjectSelectionType = "";
         }
     }
 }
