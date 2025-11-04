@@ -112,7 +112,7 @@ namespace GvcRevitPlugins.TerrainCheck
                     TaskDialog.Show("Erro", "Nenhuma face válida encontrada no elemento selecionado.");
                     return;
                 }
-            } 
+            }
             else
             {
                 //CreateDummyFaces();
@@ -209,7 +209,6 @@ namespace GvcRevitPlugins.TerrainCheck
                 );
             }
 
-            //List<WallResult_> connectedSlopePoints = ConnectPoints(wallResults.ToArray()).ToList();
             List<WallResult_> connectedSlopePoints = InternalUtils.ConnectPoints(wallResults.ToArray()).ToList();
             if (connectedSlopePoints == null || connectedSlopePoints.Count == 0)
             {
@@ -223,17 +222,17 @@ namespace GvcRevitPlugins.TerrainCheck
             using (Transaction transaction = new Transaction(Document, "Draw Line"))
             {
                 transaction.Start();
-                //var segments = ConnectSegments(connectedSlopePoints);
-                var segments = InternalUtils.ConnectSegments(connectedSlopePoints, 100, 60, 200);
+                var segments = InternalUtils.ConnectSegments(connectedSlopePoints, 5);
+                List<ElementId> results = new List<ElementId>();
                 foreach (var segment in segments)
                 {
-                    //var worstLines = BuildWorstLines(segment.ToList(), Document, 0);
                     var worstLines = InternalUtils.BuildWorstLines(segment.ToList(), Document, 0);
                     if (worstLines != null)
                     {
                         foreach (var line in worstLines)
                         {
                             utils.Draw._Wall(
+                                out ElementId id,
                                 Uid,
                                 line,
                                 TerrainCheck.TerrainCheckApp._thisApp.Store.BoundarySelectionType == "Arrimo" ? "Arrimo" : "Talude",
@@ -241,9 +240,16 @@ namespace GvcRevitPlugins.TerrainCheck
                                 0.01,
                                 3
                             );
+                            results.Add(id);
                         }
                     }
                 }
+
+                var isolate = results;
+                isolate.Add(TerrainCheckApp._thisApp.Store.Element.Id);
+                isolate.AddRange(TerrainCheckApp._thisApp.Store.TerrainBoundaryIds);
+                Document.ActiveView.IsolateElementsTemporary(isolate);
+
                 transaction.Commit();
             }
         }
@@ -303,10 +309,12 @@ namespace GvcRevitPlugins.TerrainCheck
             XYZ transformedIntersection = new XYZ(intersection.X, intersection.Y, baseLine.GetEndPoint(0).Z);
 
             double wallHeight = UnitUtils.ConvertToInternalUnits(3, UnitTypeId.Feet);
-            double totalOffset = CalculateOffset(facePoint, projectedPoint, reference, baseElevation, transformedIntersection);
+            double totalOffset = CalculateOffset(face, facePoint, projectedPoint, reference, baseElevation, transformedIntersection);
 
             XYZ movedPoint = utils.XYZUtils.GetEndPoint(transformedIntersection, normal, totalOffset);
             XYZ finalPoint = new XYZ(movedPoint.X, movedPoint.Y, UnitUtils.ConvertToInternalUnits(baseElevation, UnitTypeId.Meters));
+
+            //utils.Draw._XYZ(Document, finalPoint, 0.2, new Color(0, 0, 255));
 
             if (project)
                 finalPoint = utils.XYZUtils.ProjectPointOntoTopography(TerrainFaces, movedPoint);
@@ -324,28 +332,58 @@ namespace GvcRevitPlugins.TerrainCheck
             return slopeResult;
         }
 
-        private double CalculateOffset(XYZ facePoint, XYZ projectedPoint, Element reference, double baseElevation, XYZ transformedIntersection)
+        private double CalculateOffset(Face face, XYZ facePoint, XYZ projectedPoint, Element reference, double baseElevation, XYZ transformedIntersection)
         {
-            double minDistance = UnitUtils.ConvertToInternalUnits(utils.XYZUtils.UpOrDown(facePoint, projectedPoint), UnitTypeId.Meters);
-            if (minDistance == UnitUtils.ConvertToInternalUnits(1.5, UnitTypeId.Meters))
-                return minDistance;
+            string boundaryType = TerrainCheckApp._thisApp.Store.BoundarySelectionType;
+            double height = Math.Abs(projectedPoint.Z - baseElevation);
+            double heightMeters = UnitUtils.ConvertToInternalUnits(height, UnitTypeId.Meters);
 
-            if (TerrainCheckApp._thisApp.Store.BoundarySelectionType == "Arrimo")
+            double slopeAngle = utils.XYZUtils.GetFaceSlopeAngle(face);
+            slopeAngle = Math.Abs(slopeAngle);
+
+            if (boundaryType == "Arrimo")
             {
                 ElementType type = reference.Document.GetElement(reference.GetTypeId()) as ElementType;
+                double arrimoHeight_m = 0;
+
                 if (type != null)
                 {
                     Parameter heightParam = type.LookupParameter("Altura Arrimo");
                     if (heightParam != null && heightParam.HasValue)
-                        return heightParam.AsDouble() - 3.28;
+                    {
+                        double arrimoHeight_ft = heightParam.AsDouble();
+                        arrimoHeight_m = UnitUtils.ConvertFromInternalUnits(arrimoHeight_ft, UnitTypeId.Meters);
+                    }
                 }
-                return 0;
+
+                double offset_m = arrimoHeight_m - 1.0;
+
+                if (offset_m < 1.5)
+                    offset_m = 1.5;
+
+                double offset_ft = UnitUtils.ConvertToInternalUnits(offset_m, UnitTypeId.Meters);
+
+                return offset_ft;
             }
 
-            double verticalOffset = (projectedPoint.Z - baseElevation) / 2;
-            verticalOffset = Math.Max(verticalOffset, minDistance);
-            double inclinationOffset = Math.Abs(transformedIntersection.Z - projectedPoint.Z) / 2;
-            return verticalOffset + inclinationOffset;
+            double offsetMeters;
+
+            if (heightMeters <= 3.0)
+            {
+                offsetMeters = 1.5;
+            }
+            else
+            {
+                if (slopeAngle <= 45.0)
+                    offsetMeters = heightMeters / 2.0;
+                else
+                    offsetMeters = (2.0 * heightMeters) / 3.0;
+            }
+
+            if (heightMeters > 6.0)
+                offsetMeters += 1.0;
+
+            return UnitUtils.ConvertToInternalUnits(offsetMeters, UnitTypeId.Feet);
         }
 
         private void UpdateProgress(ProgressWindow progressWindow, int currentIndex, int totalPoints)

@@ -40,6 +40,13 @@ namespace GvcRevitPlugins.Shared.Utils
             return A.Z < B.Z ? 2.5 : 1.5;
         }
 
+        public static double GetFaceSlopeAngle(Face face)
+        {
+            XYZ normal = face.ComputeNormal(new UV(0.5, 0.5));
+            double angle = Math.Acos(Math.Abs(normal.Z)) * (180.0 / Math.PI);
+            return angle;
+        }
+
         public static XYZ FaceNormal(Face face, out UV surfaceUV)
         {
             surfaceUV = new UV();
@@ -821,9 +828,10 @@ namespace GvcRevitPlugins.Shared.Utils
             }
         }
 
-        public static void _Wall(UIDocument uiDoc, Line line, string name, Color color = null, double thickness = 0.2, double height = 3.0) 
+        public static void _Wall(out ElementId elementId, UIDocument uiDoc, Line line, string name, Color color = null, double thickness = 0.2, double height = 3.0)
         {
             Document doc = uiDoc.Document;
+            elementId = null;
 
             if (line == null || line.Length < doc.Application.ShortCurveTolerance)
                 return;
@@ -831,21 +839,9 @@ namespace GvcRevitPlugins.Shared.Utils
             double thicknessFeet = Autodesk.Revit.DB.UnitUtils.ConvertToInternalUnits(thickness, UnitTypeId.Meters);
             double heightFeet = Autodesk.Revit.DB.UnitUtils.ConvertToInternalUnits(height, UnitTypeId.Meters);
 
-            if (!doc.IsModifiable)
-            {
-                using (Transaction transaction = new Transaction(doc, "Draw Wall"))
-                {
-                    transaction.Start();
-                    Execute();
-                    transaction.Commit();
-                }
-            }
-            else
-            {
-                Execute();
-            }
+            ElementId createdWallId = null;
 
-            void Execute()
+            Action execute = () =>
             {
                 color ??= new Color(255, 255, 255);
 
@@ -876,7 +872,25 @@ namespace GvcRevitPlugins.Shared.Utils
                     CompoundStructure newStruct = CompoundStructure.CreateSimpleCompoundStructure(layers);
                     wallType.SetCompoundStructure(newStruct);
                 }
+
+                createdWallId = wall.Id;
+            };
+
+            if (!doc.IsModifiable)
+            {
+                using (Transaction transaction = new Transaction(doc, "Draw Wall"))
+                {
+                    transaction.Start();
+                    execute();
+                    transaction.Commit();
+                }
             }
+            else
+            {
+                execute();
+            }
+
+            elementId = createdWallId;
         }
 
         private static Face[] CreateDummyFaces(Document doc, Face face, out Solid solid)

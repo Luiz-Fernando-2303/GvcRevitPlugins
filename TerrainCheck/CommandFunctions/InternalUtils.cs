@@ -336,56 +336,34 @@ namespace GvcRevitPlugins.TerrainCheck.CommandFunctions
             return faces.ToArray();
         }
 
-        public static List<WallResult_[]> ConnectSegments(List<WallResult_> wallResults, double maxDist = 20, double maxAngleDeg = 30, double maxSegmentLength = 200)
+        public static List<WallResult_[]> ConnectSegments(List<WallResult_> wallResults, double maxDist = 100)
         {
             List<WallResult_[]> segments = new List<WallResult_[]>();
             List<WallResult_> currentSegment = new List<WallResult_>();
-            double accumulatedLength = 0;
 
             for (int i = 0; i < wallResults.Count; i++)
             {
                 WallResult_ currentPoint = wallResults[i];
+
                 if (currentSegment.Count == 0)
                 {
                     currentSegment.Add(currentPoint);
+                    continue;
+                }
+
+                WallResult_ lastPoint = currentSegment.Last();
+                double distance = lastPoint.PlatoHeightPoint.DistanceTo(currentPoint.PlatoHeightPoint);
+
+                if (distance > maxDist)
+                {
+                    if (currentSegment.Count >= 2)
+                        segments.Add(currentSegment.ToArray());
+
+                    currentSegment = new List<WallResult_> { currentPoint };
                 }
                 else
                 {
-                    WallResult_ lastPoint = currentSegment.Last();
-                    double distance = lastPoint.PlatoHeightPoint.DistanceTo(currentPoint.PlatoHeightPoint);
-
-                    XYZ prevVector = (currentSegment.Count > 1)
-                        ? currentSegment.Last().PlatoHeightPoint - currentSegment[currentSegment.Count - 2].PlatoHeightPoint
-                        : null;
-
-                    XYZ currentVector = currentPoint.PlatoHeightPoint - lastPoint.PlatoHeightPoint;
-
-                    double angleDeg = 0;
-                    if (prevVector != null && prevVector.GetLength() > 1e-6 && currentVector.GetLength() > 1e-6)
-                    {
-                        double dot = prevVector.Normalize().DotProduct(currentVector.Normalize());
-                        dot = Math.Max(-1.0, Math.Min(1.0, dot));
-                        angleDeg = Math.Acos(dot) * (180.0 / Math.PI);
-                    }
-
-                    bool breakSegment = false;
-                    if (distance > maxDist) breakSegment = true;
-                    if (angleDeg > maxAngleDeg) breakSegment = true;
-                    if (accumulatedLength + distance > maxSegmentLength) breakSegment = true;
-
-                    if (!breakSegment)
-                    {
-                        currentSegment.Add(currentPoint);
-                        accumulatedLength += distance;
-                    }
-                    else
-                    {
-                        if (currentSegment.Count >= 2)
-                            segments.Add(currentSegment.ToArray());
-
-                        currentSegment = new List<WallResult_> { currentPoint };
-                        accumulatedLength = 0;
-                    }
+                    currentSegment.Add(currentPoint);
                 }
             }
 
@@ -395,51 +373,65 @@ namespace GvcRevitPlugins.TerrainCheck.CommandFunctions
             return segments;
         }
 
-        public static List<Line> BuildWorstLines(List<WallResult_> segment, Document doc, double angleThreshold = 40.0)
+        public static List<Line> BuildWorstLines(List<WallResult_> segment, Document doc, double minAngle = 45.0, double maxAngle = 120.0, int maxSkip = 10)
         {
             List<Line> lines = new List<Line>();
             if (segment == null || segment.Count < 2)
                 return lines;
 
-            WallResult_ first = segment.First();
-            WallResult_ last = segment.Last();
-            WallResult_ worst = segment.OrderByDescending(w => w.totalOffset).First();
-
-            XYZ overallDirection = (last.PlatoHeightPoint - first.PlatoHeightPoint).Normalize();
-            XYZ lateral = new XYZ(-overallDirection.Y, overallDirection.X, 0).Normalize();
-
-            XYZ toWorst = worst.PlatoHeightPoint - first.PlatoHeightPoint;
-            double lateralOffset = toWorst.DotProduct(lateral);
-
-            // Ajuste dos pontos
-            List<XYZ> adjustedPoints = segment.Select(s => s.PlatoHeightPoint + lateral * lateralOffset).ToList();
-
-            XYZ prevDir = null;
+            List<XYZ> points = segment.Select(s => s.PlatoHeightPoint).ToList();
             int groupStart = 0;
+            XYZ prevDir = null;
 
-            for (int i = 1; i < adjustedPoints.Count; i++)
+            for (int i = 1; i < points.Count; i++)
             {
-                XYZ dir = (adjustedPoints[i] - adjustedPoints[i - 1]).Normalize();
+                XYZ p1 = points[i - 1];
+                XYZ p2 = points[i];
+                XYZ dir = new XYZ(p2.X - p1.X, p2.Y - p1.Y, 0).Normalize();
 
                 if (prevDir != null)
                 {
                     double angle = dir.AngleTo(prevDir) * (180.0 / Math.PI);
-                    if (angle > angleThreshold)
+
+                    if (angle > maxAngle || angle < minAngle)
                     {
-                        // fecha grupo anterior
-                        Line line = Line.CreateBound(adjustedPoints[groupStart], adjustedPoints[i - 1]);
+                        double bestAngle = angle;
+                        int bestIndex = i;
+
+                        for (int skip = 1; skip <= maxSkip && (i + skip) < points.Count; skip++)
+                        {
+                            XYZ pNext = points[i + skip];
+                            XYZ nextDir = new XYZ(pNext.X - p1.X, pNext.Y - p1.Y, 0).Normalize();
+                            double nextAngle = nextDir.AngleTo(prevDir) * (180.0 / Math.PI);
+
+                            if (nextAngle >= minAngle && nextAngle <= maxAngle)
+                            {
+                                bestIndex = i + skip;
+                                break;
+                            }
+
+                            if (Math.Abs(90 - nextAngle) < Math.Abs(90 - bestAngle))
+                            {
+                                bestAngle = nextAngle;
+                                bestIndex = i + skip;
+                            }
+                        }
+
+                        Line line = Line.CreateBound(points[groupStart], points[bestIndex]);
                         if (line.Length >= doc.Application.ShortCurveTolerance)
                             lines.Add(line);
 
-                        groupStart = i - 1; // reinicia grupo após quebra
+                        groupStart = bestIndex;
+                        i = bestIndex;
+                        prevDir = null;
+                        continue;
                     }
                 }
 
                 prevDir = dir;
             }
 
-            // adiciona última linha
-            Line lastLine = Line.CreateBound(adjustedPoints[groupStart], adjustedPoints.Last());
+            Line lastLine = Line.CreateBound(points[groupStart], points.Last());
             if (lastLine.Length >= doc.Application.ShortCurveTolerance)
                 lines.Add(lastLine);
 

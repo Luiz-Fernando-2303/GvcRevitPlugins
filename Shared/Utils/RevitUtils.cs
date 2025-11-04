@@ -91,6 +91,11 @@ namespace GvcRevitPlugins.Shared.Utils
             {
                 { "Source", "GVC_CEF" },
                 { "ResultType", $"{name}" },
+                { "CreatedOn", DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss") },
+                { "CreatedBy", Environment.UserName },
+                { "ColorR", (color?.Red ?? 255).ToString() },
+                { "ColorG", (color?.Green ?? 255).ToString() },
+                { "ColorB", (color?.Blue ?? 255).ToString() }
             });
 
             return newType;
