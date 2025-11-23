@@ -5,15 +5,120 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using System.Windows.Media.Animation;
 using utils = GvcRevitPlugins.Shared.Utils;
 
 namespace GvcRevitPlugins.TerrainCheck.CommandFunctions
 {
     public static class InternalUtils
     {
+        public static List<Line> CreateFanFromFace(Face face, int segments = 24, double length = 500)
+        {
+            List<Line> result = new List<Line>();
+
+            // Pega o centro da face
+            BoundingBoxUV bb = face.GetBoundingBox();
+            UV centerUV = (bb.Min + bb.Max) * 0.5;
+            XYZ origin = face.Evaluate(centerUV);
+
+            // VETORES PRINCIPAIS DA FACE
+            Transform deriv = face.ComputeDerivatives(centerUV);
+
+            XYZ normal = deriv.BasisZ.Normalize();
+
+            // Vetores ortogonais à normal
+            XYZ u = deriv.BasisX.Normalize();
+            XYZ v = deriv.BasisY.Normalize();
+
+            // Tamanho do raio
+            double len = UnitUtils.ConvertToInternalUnits(length, UnitTypeId.Meters);
+
+            // Ângulos de varredura (por exemplo, -90° a +90°)
+            double step = Math.PI / (segments - 1);
+            double start = -Math.PI / 2.0;
+
+            for (int i = 0; i < segments; i++)
+            {
+                double angle = start + i * step;
+
+                // DIREÇÃO DO LEQUE = base normal + giro no plano (u, v)
+                XYZ dir = (u * Math.Cos(angle) + v * Math.Sin(angle)).Normalize();
+
+                // O leque TEM QUE APONTAR PARA FRENTE da face
+                // então inclinamos para a direção da normal
+                dir = (dir + normal).Normalize();
+
+                // Ponto final
+                XYZ end = origin + dir * len;
+
+                result.Add(Line.CreateBound(origin, end));
+            }
+
+            return result;
+        }
+
+        private static XYZ ProjectPointOnLine(XYZ linePoint, XYZ lineDir, XYZ point)
+        {
+            XYZ v = point - linePoint;
+            double t = v.DotProduct(lineDir);
+            return linePoint + lineDir * t;
+        }
+
+        // Função auxiliar de interpolação linear entre dois pontos XYZ
+        private static XYZ Interpolate(XYZ original, XYZ projected, double factor)
+        {
+            return new XYZ(
+                original.X * (1 - factor) + projected.X * factor,
+                original.Y * (1 - factor) + projected.Y * factor,
+                original.Z * (1 - factor) + projected.Z * factor
+            );
+        }
+
+        public static List<WallSegmentResult> ProcessWallSegments(List<SlopeResult> wallResults, double maxDist = 100, double alignmentFactor = 1.0)
+        {
+            // 1. Criar segmentos contínuos
+            var segments = ConnectSegments(wallResults, maxDist);
+
+            List<WallSegmentResult> result = new List<WallSegmentResult>();
+
+            foreach (var seg in segments)
+            {
+                SlopeResult worst = seg.OrderBy(w => w.DistanceToCenter).First();
+
+                // Direção original do segmento
+                XYZ originalDir = (seg.Last().PlatoHeightPoint - seg.First().PlatoHeightPoint).Normalize();
+
+                // Calcula ângulo 2D em relação ao eixo X
+                double angle = Math.Atan2(originalDir.Y, originalDir.X);
+
+                // Ajusta para ângulo mais próximo múltiplo de 90° (radianos)
+                double alignedAngle = Math.Round(angle / (Math.PI / 2)) * (Math.PI / 2);
+
+                // Vetor unitário alinhado
+                XYZ alignedDir = new XYZ(Math.Cos(alignedAngle), Math.Sin(alignedAngle), 0);
+
+                // Projeção dos pontos extremos na direção alinhada
+                XYZ firstProj = ProjectPointOnLine(worst.PlatoHeightPoint, alignedDir, seg.First().PlatoHeightPoint);
+                XYZ lastProj = ProjectPointOnLine(worst.PlatoHeightPoint, alignedDir, seg.Last().PlatoHeightPoint);
+
+                // Ajuste com coeficiente de alinhamento (0 = original, 1 = totalmente alinhado)
+                XYZ firstAdjusted = Interpolate(seg.First().PlatoHeightPoint, firstProj, alignmentFactor);
+                XYZ lastAdjusted = Interpolate(seg.Last().PlatoHeightPoint, lastProj, alignmentFactor);
+
+                // Adiciona o segmento processado
+                result.Add(new WallSegmentResult
+                {
+                    CenterPoint = worst,
+                    StartPoint = firstAdjusted,
+                    EndPoint = lastAdjusted,
+                    Direction = (lastAdjusted - firstAdjusted).Normalize(), // direção final ajustada
+                    Points = seg
+                });
+            }
+
+            return result;
+        }
+
+
         public static Face[] CreateDummyFaces()
         {
             var dummy = new List<Face>();
@@ -68,7 +173,22 @@ namespace GvcRevitPlugins.TerrainCheck.CommandFunctions
             return dummy.ToArray();
         }
 
-        public static void CreateExtrudedWallFromCurves(WallResult_[] wallResults, Document document)
+        public static List<double> GetDistancesAlongNormal(List<ProjectionResult> results, XYZ centroid)
+        {
+            return results.Select(r =>
+            {
+                XYZ facePoint = r.Face.Evaluate(new UV(0.5, 0.5));
+
+                XYZ normal = r.Face.ComputeNormal(new UV(0.5, 0.5)).Normalize();
+
+                XYZ vec = centroid - facePoint;
+
+                return vec.DotProduct(normal);
+
+            }).ToList();
+        }
+
+        public static void CreateExtrudedWallFromCurves(SlopeResult[] wallResults, Document document)
         {
             using (var tx = new Transaction(document, "Create extrude wall"))
             {
@@ -149,12 +269,12 @@ namespace GvcRevitPlugins.TerrainCheck.CommandFunctions
             }
         }
 
-        public static WallResult_[] ConnectPoints(WallResult_[] points)
+        public static SlopeResult[] ConnectPoints(SlopeResult[] points)
         {
             if (points == null || points.Length < 2)
-                return Array.Empty<WallResult_>();
+                return Array.Empty<SlopeResult>();
 
-            var curves = new List<WallResult_>();
+            var curves = new List<SlopeResult>();
             double totalDistance = 0;
             int segmentCount = 0;
 
@@ -234,9 +354,7 @@ namespace GvcRevitPlugins.TerrainCheck.CommandFunctions
                     XYZ vectorToFace = (face.Evaluate(new UV(0.5, 0.5)) - startPoint).Normalize();
 
                     if (normal.DotProduct(vectorToFace) <= 0)
-                    {
                         continue;
-                    }
 
                     Line horizontalLine = utils.XYZUtils.GetLongestHorizontalEdge(face);
                     if (horizontalLine == null) continue;
@@ -250,6 +368,7 @@ namespace GvcRevitPlugins.TerrainCheck.CommandFunctions
                     {
                         projectedPoints.Add(projected);
                         ProjectionResult projectionResult = new ProjectionResult(face, startPoint, projected);
+                        //projectionResult.Draw(element.Document);
                         results.Add(projectionResult);
                         break;
                     }
@@ -331,19 +450,45 @@ namespace GvcRevitPlugins.TerrainCheck.CommandFunctions
                 }
             }
 
-            //utils.Draw._Face(Document, faces, new Color(255, 0, 0), 70);
+            double minZ = faces.Min(f =>
+            {
+                BoundingBoxUV bb = f.GetBoundingBox();
+                List<XYZ> pts = new()
+                {
+                    f.Evaluate(bb.Min),
+                    f.Evaluate(new UV(bb.Max.U, bb.Min.V)),
+                    f.Evaluate(new UV(bb.Min.U, bb.Max.V)),
+                    f.Evaluate(bb.Max)
+                };
+                return pts.Min(p => p.Z);
+            });
+
+            faces = faces.Where(f =>
+            {
+                BoundingBoxUV bb = f.GetBoundingBox();
+                List<XYZ> pts = new()
+                {
+                    f.Evaluate(bb.Min),
+                    f.Evaluate(new UV(bb.Max.U, bb.Min.V)),
+                    f.Evaluate(new UV(bb.Min.U, bb.Max.V)),
+                    f.Evaluate(bb.Max)
+                };
+                double faceMinZ = pts.Min(p => p.Z);
+                return faceMinZ <= minZ + 0.01; // tolerância pequena
+            }).ToList();
+
 
             return faces.ToArray();
         }
 
-        public static List<WallResult_[]> ConnectSegments(List<WallResult_> wallResults, double maxDist = 100)
+        public static List<SlopeResult[]> ConnectSegments(List<SlopeResult> wallResults, double maxDist = 100)
         {
-            List<WallResult_[]> segments = new List<WallResult_[]>();
-            List<WallResult_> currentSegment = new List<WallResult_>();
+            List<SlopeResult[]> segments = new List<SlopeResult[]>();
+            List<SlopeResult> currentSegment = new List<SlopeResult>();
 
             for (int i = 0; i < wallResults.Count; i++)
             {
-                WallResult_ currentPoint = wallResults[i];
+                SlopeResult currentPoint = wallResults[i];
 
                 if (currentSegment.Count == 0)
                 {
@@ -351,7 +496,7 @@ namespace GvcRevitPlugins.TerrainCheck.CommandFunctions
                     continue;
                 }
 
-                WallResult_ lastPoint = currentSegment.Last();
+                SlopeResult lastPoint = currentSegment.Last();
                 double distance = lastPoint.PlatoHeightPoint.DistanceTo(currentPoint.PlatoHeightPoint);
 
                 if (distance > maxDist)
@@ -359,7 +504,7 @@ namespace GvcRevitPlugins.TerrainCheck.CommandFunctions
                     if (currentSegment.Count >= 2)
                         segments.Add(currentSegment.ToArray());
 
-                    currentSegment = new List<WallResult_> { currentPoint };
+                    currentSegment = new List<SlopeResult> { currentPoint };
                 }
                 else
                 {
@@ -373,7 +518,7 @@ namespace GvcRevitPlugins.TerrainCheck.CommandFunctions
             return segments;
         }
 
-        public static List<Line> BuildWorstLines(List<WallResult_> segment, Document doc, double minAngle = 45.0, double maxAngle = 120.0, int maxSkip = 10)
+        public static List<Line> BuildWorstLines(List<SlopeResult> segment, Document doc, double minAngle = 45.0, double maxAngle = 120.0, int maxSkip = 10)
         {
             List<Line> lines = new List<Line>();
             if (segment == null || segment.Count < 2)

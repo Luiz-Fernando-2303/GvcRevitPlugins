@@ -1,4 +1,5 @@
 ﻿using Autodesk.Revit.DB;
+using Autodesk.Revit.DB.Visual;
 using Autodesk.Revit.UI;
 using GvcRevitPlugins.TerrainCheck;
 using System;
@@ -828,7 +829,7 @@ namespace GvcRevitPlugins.Shared.Utils
             }
         }
 
-        public static void _Wall(out ElementId elementId, UIDocument uiDoc, Line line, string name, Color color = null, double thickness = 0.2, double height = 3.0)
+        public static void _Wall(out ElementId elementId, UIDocument uiDoc, Line line, string name, Color color = null, double thickness = 0.2, double height = 3.0, bool overrideHeight = false)
         {
             Document doc = uiDoc.Document;
             elementId = null;
@@ -854,13 +855,24 @@ namespace GvcRevitPlugins.Shared.Utils
                 Level level = new FilteredElementCollector(doc)
                     .OfClass(typeof(Level))
                     .Cast<Level>()
-                    .OrderBy(l => l.Elevation)
+                    .OrderBy(l => Math.Abs(l.Elevation - TerrainCheckApp._thisApp.Store.PlatformElevation))
                     .FirstOrDefault();
 
                 if (level == null)
                     throw new InvalidOperationException("Nenhum nível encontrado no projeto.");
 
                 Wall wall = Wall.Create(doc, line, wallType.Id, level.Id, heightFeet, 0, false, false);
+
+                if (overrideHeight)
+                {
+                    // Deixa a parede sem topo definido (unconnected)
+                    wall.get_Parameter(BuiltInParameter.WALL_HEIGHT_TYPE)
+                        .Set(ElementId.InvalidElementId);
+
+                    // Define o offset da base (se for isso que deseja)
+                    wall.get_Parameter(BuiltInParameter.WALL_BASE_OFFSET)
+                        .Set(Autodesk.Revit.DB.UnitUtils.ConvertToInternalUnits(TerrainCheckApp._thisApp.Store.PlatformElevation, UnitTypeId.Meters));
+                }
 
                 CompoundStructure structure = wallType.GetCompoundStructure();
                 if (structure != null && structure.LayerCount > 0)
