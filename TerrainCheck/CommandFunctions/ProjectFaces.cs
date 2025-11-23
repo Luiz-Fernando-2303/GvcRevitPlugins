@@ -372,12 +372,14 @@ namespace GvcRevitPlugins.TerrainCheck
             {
                 t1.Start();
 
+                bool shouldOverride = TerrainCheckApp._thisApp.Store.BoundarySelectionType == "Arrimo" ? false : true;
                 SlopeColection slopeCollection = new SlopeColection(wallResults);
                 var walls = slopeCollection.DrawWalls(
                     Uid,
-                    new Color(150, 75, 0),
+                    new Color(255, 0, 0),
                     out List<Curve> curves,
-                    TerrainCheckApp._thisApp.Store.BoundarySelectionType == "Arrimo" ? "Arrimo" : "Talude"
+                    TerrainCheckApp._thisApp.Store.BoundarySelectionType == "Arrimo" ? "Arrimo" : "Talude",
+                    overrideHeight: shouldOverride
                 );
                 createdElementIds.AddRange(walls);
                 resultLocations.AddRange(curves);
