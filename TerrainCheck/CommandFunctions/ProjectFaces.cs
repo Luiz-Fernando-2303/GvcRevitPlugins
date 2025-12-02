@@ -13,9 +13,6 @@ using utils = GvcRevitPlugins.Shared.Utils;
 
 namespace GvcRevitPlugins.TerrainCheck
 {
-    /// <summary>
-    /// Resultado da projeção de um ponto em uma face do terreno.
-    /// </summary>
     public class ProjectionResult
     {
         public bool IsFaceHigher { get; set; }
@@ -63,9 +60,6 @@ namespace GvcRevitPlugins.TerrainCheck
         }
     }
 
-    /// <summary>
-    /// Resultado da projeção de uma linha inclinada sobre o terreno, incluindo o ponto projetado e a altura da parede.
-    /// </summary>
     public class SlopeResult
     {
         /// <summary>
@@ -783,7 +777,7 @@ namespace GvcRevitPlugins.TerrainCheck
             if (height_ft > 6.0)
                 offset_ft_ += 1.0;
 
-            return offset_ft_ - 5;
+            return offset_ft_ - 6.1; // Correction
         }
 
         private void UpdateProgress(ProgressWindow progressWindow, int currentIndex, int totalPoints)
