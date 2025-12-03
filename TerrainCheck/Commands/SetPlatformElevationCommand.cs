@@ -67,8 +67,14 @@ namespace GvcRevitPlugins.TerrainCheck.Commands
                         vertices.Add(endPoint);
                 }
 
-            var result = Math.Round(UnitUtils.ConvertFromInternalUnits(vertices[0].Z, UnitTypeId.Meters), 1);
+            vertices.Sort((a, b) => a.Z.CompareTo(b.Z));
+            XYZ lower = vertices[0];
+
+            var result = Math.Round(UnitUtils.ConvertFromInternalUnits(lower.Z, UnitTypeId.Meters), 1);
+
             TerrainCheckApp._thisApp.Store.PlatformElevation = result;
+            TerrainCheckApp._thisApp.Store.lowerElementPoint = lower;
+
             return result;
         }
     }

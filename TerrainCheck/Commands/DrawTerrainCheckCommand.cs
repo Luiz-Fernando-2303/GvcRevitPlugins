@@ -74,12 +74,14 @@ namespace GvcRevitPlugins.TerrainCheck.Commands
                     {
                         double lowestZInMeters = UnitUtils.ConvertFromInternalUnits(lowestZ.Value, UnitTypeId.Meters);
                         TerrainCheckApp._thisApp.Store.PlatformElevation = (int)Math.Ceiling(lowestZInMeters);
+                        TerrainCheckApp._thisApp.Store.lowerElementPoint = new XYZ(0, 0, lowestZ.Value);
 
                         TaskDialog.Show("Sucesso", $"Plataforma definida na cota {TerrainCheckApp._thisApp.Store.PlatformElevation} m.");
                     }
                     else
                     {
                         TerrainCheckApp._thisApp.Store.PlatformElevation = 0;
+                        TerrainCheckApp._thisApp.Store.lowerElementPoint = new XYZ(0, 0, 0);
                         TaskDialog.Show("Aviso", "Não foi possível determinar a cota da plataforma. Valor definido como 0.");
                     }
                 }

@@ -730,10 +730,21 @@ namespace GvcRevitPlugins.TerrainCheck
         private double CalculateOffset(Face face, XYZ facePoint, XYZ projectedPoint, Element reference)
         {
             string boundaryType = TerrainCheckApp._thisApp.Store.BoundarySelectionType;
-            double height = Math.Abs(projectedPoint.Z - facePoint.Z);
-            double height_ft = UnitUtils.ConvertToInternalUnits(height, UnitTypeId.Feet);
+            double height;
+            double height_ft;
 
-            double slopeAngle = utils.XYZUtils.GetFaceSlopeAngle(face);
+            if (TerrainCheckApp._thisApp.Store.lowerElementPoint != null || TerrainCheckApp._thisApp.Store.lowerElementPoint.Z != 0)
+            {
+                height = Math.Abs(projectedPoint.Z - facePoint.Z);
+                height_ft = UnitUtils.ConvertToInternalUnits(height, UnitTypeId.Feet);
+            }
+            else
+            {
+                height = Math.Abs(projectedPoint.Z - TerrainCheckApp._thisApp.Store.lowerElementPoint.Z);
+                height_ft = UnitUtils.ConvertToInternalUnits(height, UnitTypeId.Feet);
+            }
+
+            double slopeAngle = utils.XYZUtils.GetFaceSlopeAngle(face) - 45;
             slopeAngle = Math.Abs(slopeAngle);
 
             if (boundaryType == "Arrimo")
@@ -777,7 +788,7 @@ namespace GvcRevitPlugins.TerrainCheck
             if (height_ft > 6.0)
                 offset_ft_ += 1.0;
 
-            return offset_ft_ - 6.1; // Correction
+            return offset_ft_;
         }
 
         private void UpdateProgress(ProgressWindow progressWindow, int currentIndex, int totalPoints)
