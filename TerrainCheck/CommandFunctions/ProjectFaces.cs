@@ -69,6 +69,8 @@ namespace GvcRevitPlugins.TerrainCheck
 
         public XYZ PlatoHeightPoint { get; set; }
 
+        public ProjectionResult projection { get; set; }
+
         /// <summary>
         /// Altura da parede a ser criada a partir do ponto projetado.
         /// </summary>  
@@ -204,6 +206,13 @@ namespace GvcRevitPlugins.TerrainCheck
         {
             return Line.CreateBound(StartPoint, EndPoint);
         }
+    }
+
+    public class DrawResult 
+    {
+        public ProjectionResult projection { get; set; }
+        public SlopeResult slope { get; set; }
+        public WallSegmentResult wallSegment { get; set; }
     }
 
     public class ProjectFaces
@@ -355,10 +364,23 @@ namespace GvcRevitPlugins.TerrainCheck
                 );
             }
 
+            List<DrawResult> results = new List<DrawResult>();
+
+            // make draw results
+            foreach (SlopeResult slope in wallResults)
+            {
+                results.Add(new DrawResult
+                {
+                    projection = slope.projection,
+                    slope = slope
+                });
+            }
+
             List<ElementId> createdElementIds = new List<ElementId>();
             List<Curve> resultLocations = new List<Curve>();
-            XYZ[] locations = new XYZ[0];
-            double[] offSets = new double[0];
+            //XYZ[] locations = new XYZ[0];
+            //double[] offSets = new double[0];
+            //SlopeResult[] slopes = new SlopeResult[0];
             BoundingBoxXYZ bbox = null;
             SlopeResult worstResult = null;
 
@@ -378,25 +400,26 @@ namespace GvcRevitPlugins.TerrainCheck
                 createdElementIds.AddRange(walls);
                 resultLocations.AddRange(curves);
 
-                double[] rawOffsets = wallResults.Select(wr => wr.totalOffset).ToArray();
+                //double[] rawOffsets = wallResults.Select(wr => wr.totalOffset).ToArray();
 
-                XYZ[] rawLocations = wallResults.Select(wr =>
-                    utils.XYZUtils.ProjectPointOntoTopography(TerrainFaces, wr.Face.Triangulate().Vertices.First())
-                ).ToArray();
+                //XYZ[] rawLocations = wallResults.Select(wr =>
+                //    utils.XYZUtils.ProjectPointOntoTopography(TerrainFaces, wr.Face.Triangulate().Vertices.First())
+                //).ToArray();
 
-                List<(XYZ p, double r)> filtered = new List<(XYZ p, double r)>();
-                double minDist = 0.15;
+                //List<(XYZ p, double r, SlopeResult slope)> filtered = new List<(XYZ p, double r, SlopeResult slope)>();
+                //double minDist = 0.15;
 
-                for (int i = 0; i < rawLocations.Length; i++)
-                {
-                    XYZ p = rawLocations[i];
-                    bool tooClose = filtered.Any(f => f.p.DistanceTo(p) < minDist);
-                    if (!tooClose)
-                        filtered.Add((p, rawOffsets[i]));
-                }
+                //for (int i = 0; i < rawLocations.Length; i++)
+                //{
+                //    XYZ p = rawLocations[i];
+                //    bool tooClose = filtered.Any(f => f.p.DistanceTo(p) < minDist);
+                //    if (!tooClose)
+                //        filtered.Add((p, rawOffsets[i], wallResults[i]));
+                //}
 
-                locations = filtered.Select(f => f.p).ToArray();
-                offSets = filtered.Select(f => f.r).ToArray();
+                //locations = filtered.Select(f => f.p).ToArray();
+                //offSets = filtered.Select(f => f.r).ToArray();
+                //slopes = filtered.Select(f => f.slope).ToArray();
 
                 List<ElementId> elementsToInclude = new List<ElementId>(createdElementIds);
 
@@ -496,7 +519,7 @@ namespace GvcRevitPlugins.TerrainCheck
                     .First(v => v.ViewFamily == ViewFamily.FloorPlan);
 
                 ViewPlan viewPlan = ViewPlan.Create(Document, planType.Id, level.Id);
-                viewPlan.Name = $"Resultado_{TerrainCheckApp._thisApp.Store.BoundarySelectionType} " + DateTime.Now.ToString("yyyyMMdd_HHmmss");
+                viewPlan.Name = $"Resultado_{TerrainCheckApp._thisApp.Store.BoundarySelectionType}_{DateTime.Now:yyyyMMdd_HHmmss}";
 
                 if (viewPlan.ViewTemplateId != ElementId.InvalidElementId)
                     viewPlan.ViewTemplateId = ElementId.InvalidElementId;
@@ -562,15 +585,37 @@ namespace GvcRevitPlugins.TerrainCheck
                 XYZ X = XYZ.BasisX;
                 XYZ Y = XYZ.BasisY;
 
-                double offMin = offSets.Min();
-                double offMax = offSets.Max();
+                double offMin = results.Select(r => r.slope.totalOffset).Min();
+                double offMax = results.Select(r => r.slope.totalOffset).Max();
 
-                for (int i = 0; i < locations.Length; i++)
+                var groupedResults =
+                    results
+                    .Select(r => new
+                    {
+                        Result = r,
+                        Center = r.slope.Face.Triangulate().Vertices.First()
+                    })
+                    .GroupBy(x => new
+                    {
+                        X = Math.Round(x.Center.X, 6),
+                        Y = Math.Round(x.Center.Y, 6),
+                        Z = Math.Round(x.Center.Z, 6)
+                    })
+                    .Select(g => g
+                        .OrderByDescending(x => x.Result.slope.totalOffset)
+                        .First())
+                    .ToList();
+
+                foreach (var result in groupedResults)
                 {
-                    XYZ center = locations[i];
-                    double radius = offSets[i];
+                    double x = result.Center.X;
+                    double y = result.Center.Y;
+                    double z = TerrainCheckApp._thisApp.Store.lowerElementPoint.Z;
 
-                    double t = (offSets[i] - offMin) / (offMax - offMin + 1e-6);
+                    XYZ center = new XYZ(x,y,z);
+                    double radius = result.Result.slope.totalOffset;
+
+                    double t = (radius - offMin) / (offMax - offMin + 1e-6);
                     byte r = (byte)(255 * t);
                     byte g = (byte)(255 * (1 - t));
                     Color dynamicColor = new Color(r, g, 0);
@@ -582,8 +627,57 @@ namespace GvcRevitPlugins.TerrainCheck
                         Document.Create.NewDetailCurve(viewPlan,
                         Arc.Create(center, radius, 0, 2 * Math.PI, X, Y));
 
+                    // Draw the projection reference
+                    SlopeResult slopeResult = result.Result.slope;
+                    XYZ terrainLocation = slopeResult.projection.ProjectedPoint;
+                    Color pointColor = new Color(0, 0, 255);
 
+                    double crossLen_T = Math.Max(radius * 0.05, 0.02);
+                    Color blue_T = new Color(0, 0, 255);
 
+                    DetailCurve cxT =
+                        Document.Create.NewDetailCurve(
+                            viewPlan,
+                            Line.CreateBound(
+                                terrainLocation + X * crossLen_T,
+                                terrainLocation - X * crossLen_T
+                            )
+                        );
+
+                    OverrideGraphicSettings ogsCX_T = new OverrideGraphicSettings();
+                    ogsCX_T.SetProjectionLineColor(blue_T);
+                    viewPlan.SetElementOverrides(cxT.Id, ogsCX_T);
+
+                    DetailCurve cyT =
+                        Document.Create.NewDetailCurve(
+                            viewPlan,
+                            Line.CreateBound(
+                                terrainLocation + Y * crossLen_T,
+                                terrainLocation - Y * crossLen_T
+                            )
+                        );
+
+                    OverrideGraphicSettings ogsCY_T = new OverrideGraphicSettings();
+                    ogsCY_T.SetProjectionLineColor(blue_T);
+                    viewPlan.SetElementOverrides(cyT.Id, ogsCY_T);
+
+                    double viewZ = viewPlan.GenLevel.Elevation;
+
+                    XYZ c2D = new XYZ(center.X, center.Y, viewZ);
+                    XYZ t2D = new XYZ(terrainLocation.X, terrainLocation.Y, viewZ);
+
+                    DetailCurve linkLine =
+                        Document.Create.NewDetailCurve(
+                            viewPlan,
+                            Line.CreateBound(c2D, t2D)
+                        );
+
+                    OverrideGraphicSettings ogsLink = new OverrideGraphicSettings();
+                    ogsLink.SetProjectionLineColor(new Color(0, 200, 255));
+
+                    viewPlan.SetElementOverrides(linkLine.Id, ogsLink);
+
+                    // Draw the circle and cross at the slope point
                     viewPlan.SetElementOverrides(dCircle.Id, ogsCircle);
 
                     Color blue = new Color(0, 0, 255);
@@ -617,14 +711,27 @@ namespace GvcRevitPlugins.TerrainCheck
                         };
 
                         string txt =
-                            "⌀ " + Math.Round(radius * 2, 2) +
-                            "\nRaio: " + Math.Round(radius, 2) +
-                            "\nOffset: " + Math.Round(offSets[i], 2) +
-                            "\nCentro:\nX=" + Math.Round(center.X, 3) +
-                            "  Y=" + Math.Round(center.Y, 3) +
-                            "  Z=" + Math.Round(center.Z, 3);
+                        "\nAfastamento (m): " + Math.Round(
+                            UnitUtils.ConvertFromInternalUnits(radius, UnitTypeId.Meters), 2
+                        ) +
+                        "\nCentro:" +
+                        "\nX = " + Math.Round(center.X, 3) +
+                        "\nY = " + Math.Round(center.Y, 3) +
+                        "\nZ = " + Math.Round(center.Z, 3);
+
+                        XYZ terrainDescPoint = terrainLocation + X * (radius * 0.5);
+
+                        string txt2 =
+                        "Altura (m): " + Math.Round(
+                            UnitUtils.ConvertFromInternalUnits(terrainLocation.Z, UnitTypeId.Meters), 3
+                        ) +
+                        "\nTerreno:" +
+                        "\nX = " + Math.Round(terrainLocation.X, 3) +
+                        "\nY = " + Math.Round(terrainLocation.Y, 3) +
+                        "\nZ = " + Math.Round(terrainLocation.Z, 3);
 
                         TextNote.Create(Document, viewPlan.Id, dimPoint, txt, opt);
+                        TextNote.Create(Document, viewPlan.Id, terrainDescPoint, txt2, opt);
                     }
                 }
 
@@ -716,6 +823,7 @@ namespace GvcRevitPlugins.TerrainCheck
             slopeResult.HeightDifference = projectionResult.HeightDifference_;
             slopeResult.DistanceToCenter = projectionResult.DistanceToCenter;
             slopeResult.Face = face;
+            slopeResult.projection = projectionResult;
 
             if (slopeResult.resultPoint == null || project == false)
             {
@@ -733,7 +841,7 @@ namespace GvcRevitPlugins.TerrainCheck
             double height;
             double height_ft;
 
-            if (TerrainCheckApp._thisApp.Store.lowerElementPoint != null || TerrainCheckApp._thisApp.Store.lowerElementPoint.Z != 0)
+            if (TerrainCheckApp._thisApp.Store.lowerElementPoint == null)
             {
                 height = Math.Abs(projectedPoint.Z - facePoint.Z);
                 height_ft = UnitUtils.ConvertToInternalUnits(height, UnitTypeId.Feet);
@@ -785,9 +893,10 @@ namespace GvcRevitPlugins.TerrainCheck
                     offset_ft_ = (2.0 * height_ft) / 3.0;
             }
 
-            if (height_ft > 6.0)
-                offset_ft_ += 1.0;
+            //if (height_ft > 6.0)
+            //    offset_ft_ += 1.0;
 
+            //return offset_ft_ + 0.7;
             return offset_ft_;
         }
 

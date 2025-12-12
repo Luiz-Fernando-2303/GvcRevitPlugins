@@ -73,7 +73,7 @@ namespace GvcRevitPlugins.TerrainCheck.Commands
                     if (lowestZ.HasValue)
                     {
                         double lowestZInMeters = UnitUtils.ConvertFromInternalUnits(lowestZ.Value, UnitTypeId.Meters);
-                        TerrainCheckApp._thisApp.Store.PlatformElevation = (int)Math.Ceiling(lowestZInMeters);
+                        TerrainCheckApp._thisApp.Store.PlatformElevation = Math.Truncate(lowestZInMeters);
                         TerrainCheckApp._thisApp.Store.lowerElementPoint = new XYZ(0, 0, lowestZ.Value);
 
                         TaskDialog.Show("Sucesso", $"Plataforma definida na cota {TerrainCheckApp._thisApp.Store.PlatformElevation} m.");
@@ -85,6 +85,16 @@ namespace GvcRevitPlugins.TerrainCheck.Commands
                         TaskDialog.Show("Aviso", "Não foi possível determinar a cota da plataforma. Valor definido como 0.");
                     }
                 }
+
+                if (TerrainCheckApp._thisApp.Store.PlatformElevation == 0)
+                    TerrainCheckApp._thisApp.Store.lowerElementPoint = new XYZ(
+                        0,
+                        0,
+                        UnitUtils.ConvertToInternalUnits(
+                            TerrainCheckApp._thisApp.Store.PlatformElevation,
+                            UnitTypeId.Meters
+                        )
+                    );
 
                 // Executa o comando principal
                 TerrainCheckCommand.Execute(uiApp as UIApplication, true);
